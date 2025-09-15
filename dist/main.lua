@@ -2,8 +2,9 @@ local turtle = turtle
 local peripheral = peripheral
 local term = term
 local fs = fs
-local current_pos = {x = -1841, y = 64, z = -131}
+local current_pos = {x = -1838, y = 64, z = -128}
 local target_chest = {x = -1836, y = 63, z = -127}
+local current_facing = "east"
 local config_file = "bucket_collector_config.txt"
 local function clear_screen()
   term.clear()
@@ -98,7 +99,7 @@ local function find_empty_inventory_slot()
   return nil
 end
 local function save_config()
-  local config_data = {["current-pos"] = current_pos, ["target-chest"] = target_chest}
+  local config_data = {["current-pos"] = current_pos, ["target-chest"] = target_chest, ["current-facing"] = current_facing}
   local file = fs.open(config_file, "w")
   if file then
     file.write(textutils.serialize(config_data))
@@ -118,6 +119,10 @@ local function load_config()
       if config then
         current_pos = config["current-pos"]
         target_chest = config["target-chest"]
+        if config["current-facing"] then
+          current_facing = config["current-facing"]
+        else
+        end
         return print_status("Configuration loaded from file")
       else
         return nil
@@ -148,6 +153,78 @@ local function update_current_position()
   else
     return print_status("GPS not available, using stored position")
   end
+end
+local function turn_left()
+  turtle.turnLeft()
+  if (current_facing == "north") then
+    current_facing = "west"
+  elseif (current_facing == "east") then
+    current_facing = "north"
+  elseif (current_facing == "south") then
+    current_facing = "east"
+  elseif (current_facing == "west") then
+    current_facing = "south"
+  else
+  end
+  return print_status(("Turned left, now facing " .. current_facing))
+end
+local function turn_right()
+  turtle.turnRight()
+  if (current_facing == "north") then
+    current_facing = "east"
+  elseif (current_facing == "east") then
+    current_facing = "south"
+  elseif (current_facing == "south") then
+    current_facing = "west"
+  elseif (current_facing == "west") then
+    current_facing = "north"
+  else
+  end
+  return print_status(("Turned right, now facing " .. current_facing))
+end
+local function move_forward()
+  if turtle.forward() then
+    if (current_facing == "north") then
+      current_pos.z = (current_pos.z + 1)
+    elseif (current_facing == "south") then
+      current_pos.z = (current_pos.z - 1)
+    elseif (current_facing == "east") then
+      current_pos.x = (current_pos.x + 1)
+    elseif (current_facing == "west") then
+      current_pos.x = (current_pos.x - 1)
+    else
+    end
+    print_status(("Moved forward to " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z))
+    save_config()
+    return true
+  else
+    return nil
+  end
+end
+local function check_obstacles()
+  local front = turtle.detect()
+  local up = turtle.detectUp()
+  local down = turtle.detectDown()
+  local _25_
+  if front then
+    _25_ = "YES"
+  else
+    _25_ = "NO"
+  end
+  local _27_
+  if up then
+    _27_ = "YES"
+  else
+    _27_ = "NO"
+  end
+  local _29_
+  if down then
+    _29_ = "YES"
+  else
+    _29_ = "NO"
+  end
+  print_status(("Obstacles - Front: " .. _25_ .. " Up: " .. _27_ .. " Down: " .. _29_))
+  return {front = front, up = up, down = down}
 end
 local function calculate_distance(pos1, pos2)
   return (math.abs((pos1.x - pos2.x)) + math.abs((pos1.z - pos2.z)))
@@ -183,129 +260,154 @@ local function get_direction_to_target()
     end
   end
 end
-local function try_detour(target_direction)
+local function try_detour()
   print_status("Attempting obstacle avoidance...")
-  turtle.turnLeft()
-  if turtle.forward() then
-    print_status("Detour: moved left, trying to continue")
-    turtle.turnRight()
-    if turtle.forward() then
-      print_status("Detour successful!")
-      turtle.turnLeft()
-      return true
+  local obstacles = check_obstacles()
+  turn_left()
+  if not obstacles.front then
+    if move_forward() then
+      print_status("Detour: moved left, trying to continue")
+      turn_right()
+      if move_forward() then
+        print_status("Left detour successful!")
+        turn_left()
+        return true
+      else
+        print_status("Left detour failed, undoing")
+        turn_left()
+        move_forward()
+        turn_right()
+        return false
+      end
     else
-      print_status("Detour failed, undoing")
-      turtle.turnLeft()
-      turtle.forward()
-      turtle.turnRight()
       return false
     end
   else
     print_status("Left blocked, trying right")
-    turtle.turnRight()
-    turtle.turnRight()
-    if turtle.forward() then
+    turn_right()
+    turn_right()
+    if move_forward() then
       print_status("Detour: moved right, trying to continue")
-      turtle.turnLeft()
-      if turtle.forward() then
+      turn_left()
+      if move_forward() then
         print_status("Right detour successful!")
-        turtle.turnRight()
+        turn_right()
         return true
       else
         print_status("Right detour failed, undoing")
-        turtle.turnRight()
-        turtle.forward()
-        turtle.turnLeft()
+        turn_right()
+        move_forward()
+        turn_left()
         return false
       end
     else
       print_status("Both directions blocked")
-      turtle.turnLeft()
+      turn_left()
       return false
     end
   end
 end
+local function face_direction(target_dir)
+  local directions = {"north", "east", "south", "west"}
+  local current_idx = (find_index(directions, current_facing) or 1)
+  local target_idx = (find_index(directions, target_dir) or 1)
+  local turns = (target_idx - current_idx)
+  if (turns == 0) then
+    return nil
+  elseif ((turns == 1) or (turns == -3)) then
+    return turn_right()
+  elseif ((turns == -1) or (turns == 3)) then
+    return turn_left()
+  elseif ((turns == 2) or (turns == -2)) then
+    turn_right()
+    return turn_right()
+  else
+    return nil
+  end
+end
+local function find_index(tbl, item)
+  local result = nil
+  for i, v in ipairs(tbl) do
+    if (v == item) then
+      result = i
+    else
+    end
+  end
+  return result
+end
 local function move_towards_target()
   local dx = (target_chest.x - current_pos.x)
   local dz = (target_chest.z - current_pos.z)
-  print_status(("Current: " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z))
+  print_status(("Current: " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z .. " facing " .. current_facing))
   print_status(("Target: " .. target_chest.x .. ", " .. target_chest.y .. ", " .. target_chest.z))
-  print_status(("Delta: dx=" .. dx .. " dz=" .. dz .. " (Y movement disabled)"))
+  print_status(("Delta: dx=" .. dx .. " dz=" .. dz))
   local moved = false
   local tried_detour = false
   if ((dx ~= 0) and not moved) then
     if (dx > 0) then
-      print_status("Moving East (+X) - turning right and forward")
-      turtle.turnRight()
-      if turtle.forward() then
-        current_pos.x = (current_pos.x + 1)
+      print_status("Need to move East (+X)")
+      face_direction("east")
+      if move_forward() then
         moved = true
         print_status("Successfully moved East")
       else
-        print_status("Failed to move East - trying detour")
-        if try_detour("east") then
+        print_status("Blocked moving East - trying detour")
+        if try_detour() then
           moved = true
           tried_detour = true
-          print_status("Detour successful, moved East")
+          print_status("Detour successful")
         else
         end
       end
-      turtle.turnLeft()
     else
-      print_status("Moving West (-X) - turning left and forward")
-      turtle.turnLeft()
-      if turtle.forward() then
-        current_pos.x = (current_pos.x - 1)
+      print_status("Need to move West (-X)")
+      face_direction("west")
+      if move_forward() then
         moved = true
         print_status("Successfully moved West")
       else
-        print_status("Failed to move West - trying detour")
-        if try_detour("west") then
+        print_status("Blocked moving West - trying detour")
+        if try_detour() then
           moved = true
           tried_detour = true
-          print_status("Detour successful, moved West")
+          print_status("Detour successful")
         else
         end
       end
-      turtle.turnRight()
     end
   else
   end
   if ((dz ~= 0) and not moved) then
     if (dz > 0) then
-      print_status("Moving North (+Z) - forward")
-      if turtle.forward() then
-        current_pos.z = (current_pos.z + 1)
+      print_status("Need to move North (+Z)")
+      face_direction("north")
+      if move_forward() then
         moved = true
         print_status("Successfully moved North")
       else
-        print_status("Failed to move North - trying detour")
-        if try_detour("north") then
+        print_status("Blocked moving North - trying detour")
+        if try_detour() then
           moved = true
           tried_detour = true
-          print_status("Detour successful, moved North")
+          print_status("Detour successful")
         else
         end
       end
     else
-      print_status("Moving South (-Z) - turn around and forward")
-      turtle.turnRight()
-      turtle.turnRight()
-      if turtle.forward() then
-        current_pos.z = (current_pos.z - 1)
+      print_status("Need to move South (-Z)")
+      face_direction("south")
+      if move_forward() then
         moved = true
         print_status("Successfully moved South")
       else
-        print_status("Failed to move South - trying detour")
-        if try_detour("south") then
+        print_status("Blocked moving South - trying detour")
+        if try_detour() then
           moved = true
           tried_detour = true
-          print_status("Detour successful, moved South")
+          print_status("Detour successful")
         else
         end
       end
-      turtle.turnRight()
-      turtle.turnRight()
     end
   else
   end
@@ -315,7 +417,6 @@ local function move_towards_target()
     else
       print_status(("New position: " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z))
     end
-    save_config()
   else
   end
   return moved
