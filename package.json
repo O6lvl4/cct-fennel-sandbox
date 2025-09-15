@@ -4,7 +4,7 @@
   "description": "CC:Tweaked Fennel project template",
   "scripts": {
     "build": "fennel --compile src/main.fnl > dist/main.lua",
-    "build:chest": "fennel --compile src/chest_test.fnl > dist/chest_test.lua",
+    "build:chest": "fennel --compile src/chest_test_en.fnl > dist/chest_test.lua",
     "build:move": "fennel --compile src/move_test.fnl > dist/move_test.lua", 
     "build:bucket": "fennel --compile src/bucket_collector.fnl > dist/bucket_collector.lua",
     "build:utils": "fennel --compile src/utils.fnl > dist/utils.lua",

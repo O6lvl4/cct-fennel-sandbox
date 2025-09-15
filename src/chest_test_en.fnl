@@ -1,8 +1,9 @@
-;; Chest Detection Test Script
+;; Chest Detection Test Script (English)
 ;; Simple standalone chest detection and testing
 
 (local turtle turtle)
 (local peripheral peripheral)
+(local term term)
 
 (fn clear_screen []
   "Clear the terminal screen"
@@ -24,29 +25,29 @@
 
 (fn scan_cmd []
   "Scan all peripherals"
-  (print "=== 周辺機器スキャン ===")
+  (print "=== PERIPHERAL SCAN ===")
   (let [directions ["front" "back" "top" "bottom" "left" "right"]]
     (each [_ dir (ipairs directions)]
       (let [ptype (peripheral.getType dir)]
-        (print (.. dir ": " (or ptype "なし"))))))
+        (print (.. dir ": " (or ptype "none"))))))
   (let [all_peripherals (peripheral.getNames)]
-    (print (.. "全周辺機器: " (table.concat all_peripherals ", ")))
+    (print (.. "All peripherals: " (table.concat all_peripherals ", ")))
     (each [_ name (ipairs all_peripherals)]
       (print (.. "  " name " = " (peripheral.getType name))))))
 
 (fn suck_test []
   "Manual suck test"
-  (print "手動回収テスト中...")
+  (print "Testing manual collection...")
   (let [directions {"front" turtle.suck "up" turtle.suckUp "down" turtle.suckDown}]
     (each [dir func (pairs directions)]
-      (print (.. dir "をテスト中..."))
+      (print (.. "Testing " dir "..."))
       (if (func)
-          (print (.. "  " dir "から回収成功"))
-          (print (.. "  " dir "からは何もなし"))))))
+          (print (.. "  Success from " dir))
+          (print (.. "  Nothing from " dir))))))
 
 (fn basic_tests []
   "Basic turtle detection tests"
-  (print "=== 基本タートルテスト ===")
+  (print "=== BASIC TURTLE TESTS ===")
   (print (.. "turtle.detect(): " (tostring (turtle.detect))))
   (print (.. "turtle.detectUp(): " (tostring (turtle.detectUp))))
   (print (.. "turtle.detectDown(): " (tostring (turtle.detectDown)))))
@@ -54,23 +55,23 @@
 (fn main []
   "Main chest test program"
   (clear_screen)
-  (print "チェスト検知テスト v1.0")
-  (print "====================")
+  (print "Chest Detection Test v1.0")
+  (print "=========================")
   (print "")
   
-  (print "利用可能コマンド:")
-  (print "1 - クイックチェストテスト")
-  (print "2 - 周辺機器スキャン") 
-  (print "3 - 手動回収テスト")
-  (print "4 - 基本検知テスト")
-  (print "選択してください (1-4): ")
+  (print "Available commands:")
+  (print "1 - Quick chest test")
+  (print "2 - Peripheral scan") 
+  (print "3 - Manual suck test")
+  (print "4 - Basic detection test")
+  (print "Enter choice (1-4): ")
   
   (let [choice (read)]
     (if (= choice "1") (chest_cmd)
         (= choice "2") (scan_cmd)
         (= choice "3") (suck_test)
         (= choice "4") (basic_tests)
-        (print "無効な選択です"))))
+        (print "Invalid choice"))))
 
 ;; Run the main function
 (main)
