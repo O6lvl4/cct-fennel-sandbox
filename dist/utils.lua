@@ -44,7 +44,7 @@ local function save_config(config, config_file)
   if file then
     file.write(textutils.serialize(config))
     file.close()
-    return print_status("\232\168\173\229\174\154\227\130\146\227\131\149\227\130\161\227\130\164\227\131\171\227\129\171\228\191\157\229\173\152\227\129\151\227\129\190\227\129\151\227\129\159")
+    return print_status("Configuration saved to file")
   else
     return nil
   end
@@ -57,7 +57,7 @@ local function load_config(config_file)
       file.close()
       local config = textutils.unserialize(data)
       if config then
-        print_status("\232\168\173\229\174\154\227\130\146\227\131\149\227\130\161\227\130\164\227\131\171\227\129\139\227\130\137\232\170\173\227\129\191\232\190\188\227\129\191\227\129\190\227\129\151\227\129\159")
+        print_status("Configuration loaded from file")
         return config
       else
         return nil
@@ -81,9 +81,9 @@ local function get_gps_position()
 end
 local function check_fuel()
   local fuel = turtle.getFuelLevel()
-  print_status(("\231\135\131\230\150\153\227\131\172\227\131\153\227\131\171: " .. fuel))
+  print_status(("Fuel level: " .. fuel))
   if (fuel < 10) then
-    print_status("\232\173\166\229\145\138: \231\135\131\230\150\153\227\129\140\228\184\141\232\182\179\227\129\151\227\129\166\227\129\132\227\129\190\227\129\153")
+    print_status("WARNING: Low fuel")
   else
   end
   return fuel
@@ -91,16 +91,16 @@ end
 local function refuel_if_needed()
   local fuel = turtle.getFuelLevel()
   if (fuel < 10) then
-    print_status("\231\135\131\230\150\153\232\163\156\231\181\166\227\130\146\232\169\166\232\161\140\228\184\173...")
+    print_status("Attempting to refuel...")
     for slot = 1, 16 do
       turtle.select(slot)
       local item = turtle.getItemDetail()
       if (item and ((item.name == "minecraft:coal") or (item.name == "minecraft:charcoal") or (item.name == "minecraft:lava_bucket"))) then
         if turtle.refuel(1) then
-          print_status("\231\135\131\230\150\153\232\163\156\231\181\166\230\136\144\229\138\159")
+          print_status("Refuel successful")
           break
         else
-          print_status("\231\135\131\230\150\153\232\163\156\231\181\166\229\164\177\230\149\151")
+          print_status("Refuel failed")
         end
       else
       end

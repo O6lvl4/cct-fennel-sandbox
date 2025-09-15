@@ -1,53 +1,54 @@
 local turtle = turtle
+local term = term
 local function clear_screen()
   term.clear()
   return term.setCursorPos(1, 1)
 end
 local function move_forward_test()
-  print("\229\137\141\233\128\178\227\131\134\227\130\185\227\131\136\228\184\173...")
+  print("Testing forward movement...")
   if turtle.forward() then
-    return print("\229\137\141\233\128\178\230\136\144\229\138\159")
+    return print("Forward movement OK")
   else
-    return print("\229\137\141\233\128\178\228\184\141\229\143\175 - \233\154\156\229\174\179\231\137\169\227\129\130\227\130\138")
+    return print("Cannot move forward - blocked")
   end
 end
 local function move_back_test()
-  print("\229\190\140\233\128\128\227\131\134\227\130\185\227\131\136\228\184\173...")
+  print("Testing backward movement...")
   if turtle.back() then
-    return print("\229\190\140\233\128\128\230\136\144\229\138\159")
+    return print("Backward movement OK")
   else
-    return print("\229\190\140\233\128\128\228\184\141\229\143\175")
+    return print("Cannot move backward")
   end
 end
 local function turn_test()
-  print("\229\155\158\232\187\162\227\131\134\227\130\185\227\131\136\228\184\173...")
+  print("Testing rotation...")
   turtle.turnLeft()
-  print("\229\183\166\229\155\158\232\187\162\229\174\140\228\186\134")
+  print("Left turn complete")
   turtle.turnRight()
-  print("\229\143\179\229\155\158\232\187\162\229\174\140\228\186\134")
-  return print("\229\133\131\227\129\174\229\144\145\227\129\141\227\129\171\230\136\187\227\130\138\227\129\190\227\129\151\227\129\159")
+  print("Right turn complete")
+  return print("Back to original direction")
 end
 local function movement_loop()
-  print("\231\167\187\229\139\149\227\131\171\227\131\188\227\131\151\227\131\134\227\130\185\227\131\136 (5\229\155\158)")
+  print("Movement loop test (5 steps)")
   for i = 1, 5 do
-    print(("\227\130\185\227\131\134\227\131\131\227\131\151 " .. i .. "/5"))
+    print(("Step " .. i .. "/5"))
     if turtle.forward() then
-      print("  \229\137\141\233\128\178\230\136\144\229\138\159")
+      print("  Forward OK")
     else
-      print("  \229\137\141\233\128\178\229\164\177\230\149\151 - \229\155\158\233\129\191\232\169\166\232\161\140")
+      print("  Forward blocked - trying detour")
       turtle.turnLeft()
       if turtle.forward() then
-        print("  \229\183\166\232\191\130\229\155\158\230\136\144\229\138\159")
+        print("  Left detour OK")
         turtle.turnRight()
       else
         turtle.turnRight()
         turtle.turnRight()
         if turtle.forward() then
-          print("  \229\143\179\232\191\130\229\155\158\230\136\144\229\138\159")
+          print("  Right detour OK")
           turtle.turnLeft()
         else
           turtle.turnLeft()
-          print("  \229\133\168\230\150\185\229\144\145\227\131\150\227\131\173\227\131\131\227\130\175")
+          print("  All directions blocked")
         end
       end
     end
@@ -56,67 +57,67 @@ local function movement_loop()
   return nil
 end
 local function detection_test()
-  print("\233\154\156\229\174\179\231\137\169\230\164\156\231\159\165\227\131\134\227\130\185\227\131\136")
+  print("Obstacle detection test")
   local _6_
   if turtle.detect() then
-    _6_ = "\227\131\150\227\131\173\227\131\131\227\130\175\227\129\130\227\130\138"
+    _6_ = "blocked"
   else
-    _6_ = "\227\129\170\227\129\151"
+    _6_ = "clear"
   end
-  print(("\229\137\141\230\150\185: " .. _6_))
+  print(("Front: " .. _6_))
   local _8_
   if turtle.detectUp() then
-    _8_ = "\227\131\150\227\131\173\227\131\131\227\130\175\227\129\130\227\130\138"
+    _8_ = "blocked"
   else
-    _8_ = "\227\129\170\227\129\151"
+    _8_ = "clear"
   end
-  print(("\228\184\138\230\150\185: " .. _8_))
+  print(("Up: " .. _8_))
   local _10_
   if turtle.detectDown() then
-    _10_ = "\227\131\150\227\131\173\227\131\131\227\130\175\227\129\130\227\130\138"
+    _10_ = "blocked"
   else
-    _10_ = "\227\129\170\227\129\151"
+    _10_ = "clear"
   end
-  return print(("\228\184\139\230\150\185: " .. _10_))
+  return print(("Down: " .. _10_))
 end
 local function inspect_test()
-  print("\227\131\150\227\131\173\227\131\131\227\130\175\232\170\191\230\159\187\227\131\134\227\130\185\227\131\136")
+  print("Block inspection test")
   do
     local has_block, block_data = turtle.inspect()
     if has_block then
-      print(("\229\137\141\230\150\185\227\131\150\227\131\173\227\131\131\227\130\175: " .. block_data.name))
+      print(("Front block: " .. block_data.name))
     else
-      print("\229\137\141\230\150\185: \228\189\149\227\130\130\227\129\170\227\129\151")
+      print("Front: nothing")
     end
   end
   do
     local has_block, block_data = turtle.inspectUp()
     if has_block then
-      print(("\228\184\138\230\150\185\227\131\150\227\131\173\227\131\131\227\130\175: " .. block_data.name))
+      print(("Up block: " .. block_data.name))
     else
-      print("\228\184\138\230\150\185: \228\189\149\227\130\130\227\129\170\227\129\151")
+      print("Up: nothing")
     end
   end
   local has_block, block_data = turtle.inspectDown()
   if has_block then
-    return print(("\228\184\139\230\150\185\227\131\150\227\131\173\227\131\131\227\130\175: " .. block_data.name))
+    return print(("Down block: " .. block_data.name))
   else
-    return print("\228\184\139\230\150\185: \228\189\149\227\130\130\227\129\170\227\129\151")
+    return print("Down: nothing")
   end
 end
 local function main()
   clear_screen()
-  print("\231\167\187\229\139\149\227\131\134\227\130\185\227\131\136 v1.0")
-  print("==============")
+  print("Movement Test v1.0")
+  print("==================")
   print("")
-  print("\229\136\169\231\148\168\229\143\175\232\131\189\227\131\134\227\130\185\227\131\136:")
-  print("1 - \229\137\141\233\128\178\227\131\134\227\130\185\227\131\136")
-  print("2 - \229\190\140\233\128\128\227\131\134\227\130\185\227\131\136")
-  print("3 - \229\155\158\232\187\162\227\131\134\227\130\185\227\131\136")
-  print("4 - \231\167\187\229\139\149\227\131\171\227\131\188\227\131\151\227\131\134\227\130\185\227\131\136")
-  print("5 - \233\154\156\229\174\179\231\137\169\230\164\156\231\159\165\227\131\134\227\130\185\227\131\136")
-  print("6 - \227\131\150\227\131\173\227\131\131\227\130\175\232\170\191\230\159\187\227\131\134\227\130\185\227\131\136")
-  print("\233\129\184\230\138\158\227\129\151\227\129\166\227\129\143\227\129\160\227\129\149\227\129\132 (1-6): ")
+  print("Available tests:")
+  print("1 - Forward movement test")
+  print("2 - Backward movement test")
+  print("3 - Rotation test")
+  print("4 - Movement loop test")
+  print("5 - Obstacle detection test")
+  print("6 - Block inspection test")
+  print("Enter choice (1-6): ")
   local choice = read()
   if (choice == "1") then
     return move_forward_test()
@@ -131,7 +132,7 @@ local function main()
   elseif (choice == "6") then
     return inspect_test()
   else
-    return print("\231\132\161\229\138\185\227\129\170\233\129\184\230\138\158\227\129\167\227\129\153")
+    return print("Invalid choice")
   end
 end
 return main()
