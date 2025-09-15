@@ -135,97 +135,95 @@
         (print-status "GPS not available, using stored position"))))
 
 (fn calculate-distance [pos1 pos2]
-  "Calculate Manhattan distance between two positions"
+  "Calculate Manhattan distance between two positions (X and Z only)"
   (+ (math.abs (- pos1.x pos2.x))
-     (math.abs (- pos1.y pos2.y))
      (math.abs (- pos1.z pos2.z))))
 
 (fn get-direction-to-target []
-  "Calculate direction to target chest"
+  "Calculate direction to target chest based on adjacent position"
   (let [dx (- target-chest.x current-pos.x)
         dy (- target-chest.y current-pos.y)
         dz (- target-chest.z current-pos.z)]
     (print-status (.. "Target offset: x=" dx " y=" dy " z=" dz))
     (cond
-      (and (= dx 2) (= dy -1) (= dz 4)) "front"
-      (and (= dx -2) (= dy 1) (= dz -4)) "back" 
-      (and (= dy 1) (< (math.abs dx) 2) (< (math.abs dz) 2)) "top"
-      (and (= dy -1) (< (math.abs dx) 2) (< (math.abs dz) 2)) "bottom"
+      ;; Direct adjacent positions (1 block away)
+      (and (= dx 1) (= dy 0) (= dz 0)) "front"    ; Chest is +X (East)
+      (and (= dx -1) (= dy 0) (= dz 0)) "back"    ; Chest is -X (West)  
+      (and (= dx 0) (= dy 1) (= dz 0)) "top"      ; Chest is +Y (Up)
+      (and (= dx 0) (= dy -1) (= dz 0)) "bottom"  ; Chest is -Y (Down)
+      (and (= dx 0) (= dy 0) (= dz 1)) "front"    ; Chest is +Z (North) - assuming facing North
+      (and (= dx 0) (= dy 0) (= dz -1)) "back"    ; Chest is -Z (South)
       :else nil)))
 
 (fn move-towards-target []
-  "Move turtle one step towards the target chest"
+  "Move turtle one step towards the target chest (X and Z only)"
   (let [dx (- target-chest.x current-pos.x)
-        dy (- target-chest.y current-pos.y)
         dz (- target-chest.z current-pos.z)]
     
     (print-status (.. "Current: " current-pos.x ", " current-pos.y ", " current-pos.z))
     (print-status (.. "Target: " target-chest.x ", " target-chest.y ", " target-chest.z))
-    (print-status (.. "Delta: dx=" dx " dy=" dy " dz=" dz))
+    (print-status (.. "Delta: dx=" dx " dz=" dz " (Y movement disabled)"))
     
-    ;; Move in X direction first (East/West)
-    (when (not= dx 0)
+    (var moved false)
+    
+    ;; Move in X direction first (East/West) 
+    (when (and (not= dx 0) (not moved))
       (if (> dx 0)
           (do 
-            (print-status "Moving East (+X)")
+            (print-status "Moving East (+X) - turning right and forward")
+            ;; Face East (assuming starting facing North)
             (turtle.turnRight)
             (if (turtle.forward)
                 (do
                   (set current-pos.x (+ current-pos.x 1))
-                  (print-status "Moved East successfully"))
+                  (set moved true)
+                  (print-status "Successfully moved East"))
                 (print-status "Failed to move East - blocked"))
+            ;; Return to original facing direction
             (turtle.turnLeft))
           (do 
-            (print-status "Moving West (-X)")
+            (print-status "Moving West (-X) - turning left and forward")
+            ;; Face West
             (turtle.turnLeft)
             (if (turtle.forward)
                 (do
                   (set current-pos.x (- current-pos.x 1))
-                  (print-status "Moved West successfully"))
+                  (set moved true)
+                  (print-status "Successfully moved West"))
                 (print-status "Failed to move West - blocked"))
+            ;; Return to original facing direction
             (turtle.turnRight))))
     
-    ;; Move in Y direction (Up/Down)
-    (when (not= dy 0)
-      (if (> dy 0)
-          (do 
-            (print-status "Moving Up (+Y)")
-            (if (turtle.up)
-                (do
-                  (set current-pos.y (+ current-pos.y 1))
-                  (print-status "Moved Up successfully"))
-                (print-status "Failed to move Up - blocked")))
-          (do 
-            (print-status "Moving Down (-Y)")
-            (if (turtle.down)
-                (do
-                  (set current-pos.y (- current-pos.y 1))
-                  (print-status "Moved Down successfully"))
-                (print-status "Failed to move Down - blocked")))))
-    
-    ;; Move in Z direction (North/South)
-    (when (not= dz 0)
+    ;; Move in Z direction (North/South) only if we didn't move in X
+    (when (and (not= dz 0) (not moved))
       (if (> dz 0)
           (do 
-            (print-status "Moving North (+Z)")
+            (print-status "Moving North (+Z) - forward")
             (if (turtle.forward)
                 (do
                   (set current-pos.z (+ current-pos.z 1))
-                  (print-status "Moved North successfully"))
+                  (set moved true)
+                  (print-status "Successfully moved North"))
                 (print-status "Failed to move North - blocked")))
           (do 
-            (print-status "Moving South (-Z)")
+            (print-status "Moving South (-Z) - turn around and forward")
             (turtle.turnRight)
             (turtle.turnRight)
             (if (turtle.forward)
                 (do
                   (set current-pos.z (- current-pos.z 1))
-                  (print-status "Moved South successfully"))
+                  (set moved true)
+                  (print-status "Successfully moved South"))
                 (print-status "Failed to move South - blocked"))
+            ;; Return to original facing direction
             (turtle.turnRight)
             (turtle.turnRight))))
     
-    (save-config)))
+    (when moved
+      (print-status (.. "New position: " current-pos.x ", " current-pos.y ", " current-pos.z))
+      (save-config))
+    
+    moved))
 
 (fn navigate-to-chest []
   "Navigate turtle to chest position with step-by-step movement"
@@ -235,7 +233,7 @@
     (when (> initial-distance 1)
       (print-status "Starting navigation to chest...")
       
-      ;; Navigate adjacent to chest (1 block away)
+      ;; Navigate to a position adjacent to chest
       (var attempts 0)
       (var current-distance initial-distance)
       
@@ -250,7 +248,21 @@
         (os.sleep 0.5))
       
       (if (<= current-distance 1)
-          (print-status "Successfully navigated to chest area!")
+          (do
+            (print-status "Successfully navigated to chest area!")
+            ;; Position turtle adjacent to chest based on coordinates
+            (let [dx (- target-chest.x current-pos.x)
+                  dy (- target-chest.y current-pos.y)
+                  dz (- target-chest.z current-pos.z)]
+              ;; If not exactly adjacent, try to position correctly
+              (when (not= current-distance 1)
+                (print-status "Adjusting final position...")
+                ;; Move to be exactly 1 block away from chest
+                (cond
+                  ;; If too close (on top of chest), move away
+                  (= current-distance 0) (turtle.back)
+                  ;; If slightly off, try to adjust
+                  (> current-distance 1) (move-towards-target)))))
           (print-status (.. "Navigation incomplete after " attempts " attempts")))
       
       (save-config))))

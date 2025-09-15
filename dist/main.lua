@@ -150,49 +150,55 @@ local function update_current_position()
   end
 end
 local function calculate_distance(pos1, pos2)
-  return (math.abs((pos1.x - pos2.x)) + math.abs((pos1.y - pos2.y)) + math.abs((pos1.z - pos2.z)))
+  return (math.abs((pos1.x - pos2.x)) + math.abs((pos1.z - pos2.z)))
 end
 local function get_direction_to_target()
   local dx = (target_chest.x - current_pos.x)
   local dy = (target_chest.y - current_pos.y)
   local dz = (target_chest.z - current_pos.z)
   print_status(("Target offset: x=" .. dx .. " y=" .. dy .. " z=" .. dz))
-  if ((dx == 2) and (dy == -1) and (dz == 4)) then
+  if ((dx == 1) and (dy == 0) and (dz == 0)) then
     return "front"
-  elseif ((dx == -2) and (dy == 1) and (dz == -4)) then
+  elseif ((dx == -1) and (dy == 0) and (dz == 0)) then
     return "back"
-  elseif ((dy == 1) and (math.abs(dx) < 2) and (math.abs(dz) < 2)) then
+  elseif ((dx == 0) and (dy == 1) and (dz == 0)) then
     return "top"
-  elseif ((dy == -1) and (math.abs(dx) < 2) and (math.abs(dz) < 2)) then
+  elseif ((dx == 0) and (dy == -1) and (dz == 0)) then
     return "bottom"
+  elseif ((dx == 0) and (dy == 0) and (dz == 1)) then
+    return "front"
+  elseif ((dx == 0) and (dy == 0) and (dz == -1)) then
+    return "back"
   else
     return nil
   end
 end
 local function move_towards_target()
   local dx = (target_chest.x - current_pos.x)
-  local dy = (target_chest.y - current_pos.y)
   local dz = (target_chest.z - current_pos.z)
   print_status(("Current: " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z))
   print_status(("Target: " .. target_chest.x .. ", " .. target_chest.y .. ", " .. target_chest.z))
-  print_status(("Delta: dx=" .. dx .. " dy=" .. dy .. " dz=" .. dz))
-  if (dx ~= 0) then
+  print_status(("Delta: dx=" .. dx .. " dz=" .. dz .. " (Y movement disabled)"))
+  local moved = false
+  if ((dx ~= 0) and not moved) then
     if (dx > 0) then
-      print_status("Moving East (+X)")
+      print_status("Moving East (+X) - turning right and forward")
       turtle.turnRight()
       if turtle.forward() then
         current_pos.x = (current_pos.x + 1)
-        print_status("Moved East successfully")
+        moved = true
+        print_status("Successfully moved East")
       else
         print_status("Failed to move East - blocked")
       end
       turtle.turnLeft()
     else
-      print_status("Moving West (-X)")
+      print_status("Moving West (-X) - turning left and forward")
       turtle.turnLeft()
       if turtle.forward() then
         current_pos.x = (current_pos.x - 1)
-        print_status("Moved West successfully")
+        moved = true
+        print_status("Successfully moved West")
       else
         print_status("Failed to move West - blocked")
       end
@@ -200,42 +206,24 @@ local function move_towards_target()
     end
   else
   end
-  if (dy ~= 0) then
-    if (dy > 0) then
-      print_status("Moving Up (+Y)")
-      if turtle.up() then
-        current_pos.y = (current_pos.y + 1)
-        print_status("Moved Up successfully")
-      else
-        print_status("Failed to move Up - blocked")
-      end
-    else
-      print_status("Moving Down (-Y)")
-      if turtle.down() then
-        current_pos.y = (current_pos.y - 1)
-        print_status("Moved Down successfully")
-      else
-        print_status("Failed to move Down - blocked")
-      end
-    end
-  else
-  end
-  if (dz ~= 0) then
+  if ((dz ~= 0) and not moved) then
     if (dz > 0) then
-      print_status("Moving North (+Z)")
+      print_status("Moving North (+Z) - forward")
       if turtle.forward() then
         current_pos.z = (current_pos.z + 1)
-        print_status("Moved North successfully")
+        moved = true
+        print_status("Successfully moved North")
       else
         print_status("Failed to move North - blocked")
       end
     else
-      print_status("Moving South (-Z)")
+      print_status("Moving South (-Z) - turn around and forward")
       turtle.turnRight()
       turtle.turnRight()
       if turtle.forward() then
         current_pos.z = (current_pos.z - 1)
-        print_status("Moved South successfully")
+        moved = true
+        print_status("Successfully moved South")
       else
         print_status("Failed to move South - blocked")
       end
@@ -244,7 +232,12 @@ local function move_towards_target()
     end
   else
   end
-  return save_config()
+  if moved then
+    print_status(("New position: " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z))
+    save_config()
+  else
+  end
+  return moved
 end
 local function navigate_to_chest()
   local initial_distance = calculate_distance(current_pos, target_chest)
@@ -263,6 +256,18 @@ local function navigate_to_chest()
     end
     if (current_distance <= 1) then
       print_status("Successfully navigated to chest area!")
+      local dx = (target_chest.x - current_pos.x)
+      local dy = (target_chest.y - current_pos.y)
+      local dz = (target_chest.z - current_pos.z)
+      if (current_distance ~= 1) then
+        print_status("Adjusting final position...")
+        if (current_distance == 0) then
+          turtle.back()
+        elseif (current_distance > 1) then
+          move_towards_target()
+        end
+      else
+      end
     else
       print_status(("Navigation incomplete after " .. attempts .. " attempts"))
     end
