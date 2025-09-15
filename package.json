@@ -1,0 +1,13 @@
+{
+  "name": "cc-tweaked-fennel",
+  "version": "1.0.0",
+  "description": "CC:Tweaked Fennel project template",
+  "scripts": {
+    "build": "fennel --compile src/main.fnl > dist/main.lua",
+    "dev": "fennel --compile src/main.fnl > dist/main.lua && echo 'Built successfully'",
+    "watch": "fennel --compile src/main.fnl > dist/main.lua"
+  },
+  "devDependencies": {
+    "fennel": "^1.3.0"
+  }
+}
