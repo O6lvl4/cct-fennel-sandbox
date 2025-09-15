@@ -36,9 +36,12 @@ local function find_chest(direction)
       end
     end
   end
+  print_status(("Checking " .. direction .. ": " .. (chest_type or "nothing")))
   if ((chest_type == "minecraft:chest") or (chest_type == "minecraft:trapped_chest") or (chest_type == "ironchests:iron_chest") or (chest_type == "ironchests:gold_chest") or (chest_type == "ironchests:diamond_chest")) then
+    print_status(("Found chest in " .. direction .. "!"))
     return peripheral.wrap(direction)
   else
+    print_status(("No chest found in " .. direction))
     return nil
   end
 end
@@ -225,6 +228,20 @@ local function check_obstacles()
   end
   print_status(("Obstacles - Front: " .. _25_ .. " Up: " .. _27_ .. " Down: " .. _29_))
   return {front = front, up = up, down = down}
+end
+local function scan_all_peripherals()
+  print_status("=== PERIPHERAL SCAN ===")
+  local directions = {"front", "back", "top", "bottom", "left", "right"}
+  for _, dir in ipairs(directions) do
+    local ptype = peripheral.getType(dir)
+    print_status((dir .. ": " .. (ptype or "nothing")))
+  end
+  local all_peripherals = peripheral.getNames()
+  print_status(("All peripherals: " .. table.concat(all_peripherals, ", ")))
+  for _, name in ipairs(all_peripherals) do
+    print_status(("  " .. name .. " = " .. peripheral.getType(name)))
+  end
+  return nil
 end
 local function calculate_distance(pos1, pos2)
   return (math.abs((pos1.x - pos2.x)) + math.abs((pos1.z - pos2.z)))
@@ -529,14 +546,17 @@ local function main()
       print_status("Already adjacent to chest")
     end
   end
+  scan_all_peripherals()
+  print("")
   do
     local preferred_direction = get_direction_to_target()
     local directions
     if preferred_direction then
-      directions = {preferred_direction, "front", "back", "top", "bottom"}
+      directions = {preferred_direction, "front", "back", "top", "bottom", "left", "right"}
     else
-      directions = {"front", "back", "top", "bottom"}
+      directions = {"front", "back", "top", "bottom", "left", "right"}
     end
+    print_status(("Preferred direction: " .. (preferred_direction or "none")))
     local chest_found = false
     local chest = nil
     local direction = nil
@@ -563,6 +583,10 @@ local function main()
       end
     else
       print_status("No chest found in any direction!")
+      print_status("Final position check:")
+      print_status(("Current: " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z .. " facing " .. current_facing))
+      print_status(("Target: " .. target_chest.x .. ", " .. target_chest.y .. ", " .. target_chest.z))
+      print_status(("Distance: " .. calculate_distance(current_pos, target_chest) .. " blocks"))
     end
   end
   print("")

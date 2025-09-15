@@ -29,7 +29,7 @@
        (or (= item.count nil) (= item.count 0) (>= item.count 1))))
 
 (fn find-chest [direction]
-  "Find chest in specified direction"
+  "Find chest in specified direction with detailed logging"
   (let [chest-type (if (= direction "front") 
                        (peripheral.getType "front")
                        (if (= direction "back")
@@ -39,13 +39,18 @@
                                (if (= direction "bottom")
                                    (peripheral.getType "bottom")
                                    nil))))]
+    (print-status (.. "Checking " direction ": " (or chest-type "nothing")))
     (if (or (= chest-type "minecraft:chest")
             (= chest-type "minecraft:trapped_chest")
             (= chest-type "ironchests:iron_chest")
             (= chest-type "ironchests:gold_chest")
             (= chest-type "ironchests:diamond_chest"))
-        (peripheral.wrap direction)
-        nil)))
+        (do
+          (print-status (.. "Found chest in " direction "!"))
+          (peripheral.wrap direction))
+        (do
+          (print-status (.. "No chest found in " direction))
+          nil))))
 
 (fn get-chest-items [chest]
   "Get all items from chest"
@@ -176,6 +181,20 @@
                       " Up: " (if up "YES" "NO") 
                       " Down: " (if down "YES" "NO")))
     {:front front :up up :down down}))
+
+(fn scan-all-peripherals []
+  "Scan all peripheral directions and log what's found"
+  (print-status "=== PERIPHERAL SCAN ===")
+  (let [directions ["front" "back" "top" "bottom" "left" "right"]]
+    (each [_ dir (ipairs directions)]
+      (let [ptype (peripheral.getType dir)]
+        (print-status (.. dir ": " (or ptype "nothing")))))
+    
+    ;; Also check all peripheral names
+    (let [all-peripherals (peripheral.getNames)]
+      (print-status (.. "All peripherals: " (table.concat all-peripherals ", ")))
+      (each [_ name (ipairs all-peripherals)]
+        (print-status (.. "  " name " = " (peripheral.getType name)))))))
 
 (fn calculate-distance [pos1 pos2]
   "Calculate Manhattan distance between two positions (X and Z only)"
@@ -473,11 +492,16 @@
           (navigate-to-chest))
         (print-status "Already adjacent to chest")))
   
+  ;; Debug: Scan all peripherals
+  (scan-all-peripherals)
+  (print "")
+  
   ;; Try to find chest, preferring calculated direction
   (let [preferred-direction (get-direction-to-target)
         directions (if preferred-direction 
-                      [preferred-direction "front" "back" "top" "bottom"]
-                      ["front" "back" "top" "bottom"])]
+                      [preferred-direction "front" "back" "top" "bottom" "left" "right"]
+                      ["front" "back" "top" "bottom" "left" "right"])]
+    (print-status (.. "Preferred direction: " (or preferred-direction "none")))
     (var chest-found false)
     (var chest nil)
     (var direction nil)
@@ -498,7 +522,12 @@
             (if (> collected 0)
                 (print-status (.. "Successfully collected " collected " empty buckets!"))
                 (print-status "No empty buckets found in chest."))))
-        (print-status "No chest found in any direction!")))
+        (do
+          (print-status "No chest found in any direction!")
+          (print-status "Final position check:")
+          (print-status (.. "Current: " current-pos.x ", " current-pos.y ", " current-pos.z " facing " current-facing))
+          (print-status (.. "Target: " target-chest.x ", " target-chest.y ", " target-chest.z))
+          (print-status (.. "Distance: " (calculate-distance current-pos target-chest) " blocks")))))
   
   (print "")
   (print "Collection completed!"))
