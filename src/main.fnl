@@ -542,12 +542,100 @@
     
     (print-status (.. "Tests passed: " passed "/" total))))
 
+(fn simple-chest-test []
+  "Simple chest detection test with command support"
+  (print "=== チェスト検知テストコマンド ===")
+  (print "'chest' - チェスト検知テスト")
+  (print "'move' - 移動テスト")  
+  (print "'scan' - 全方向スキャン")
+  (print "'suck' - 手動アイテム回収"))
+
+(fn chest-cmd []
+  "Quick chest test command"
+  (print "=== クイックチェストテスト ===")
+  (each [_ dir (ipairs ["front" "back" "left" "right" "top" "bottom"])]
+    (let [ptype (peripheral.getType dir)]
+      (print (.. dir ": " (or ptype "なし"))))
+    (let [chest (peripheral.wrap dir)]
+      (when chest
+        (print (.. dir "でチェスト発見"))
+        (let [items (chest.list)]
+          (print (.. "アイテム数: " (length items)))))))
+  (print "テスト完了"))
+
+(fn move-cmd []
+  "Test movement command"
+  (print "移動テスト中...")
+  (if (turtle.forward)
+    (print "前進成功")
+    (print "前進不可 - 障害物あり"))
+  (if (turtle.back)
+    (print "後退成功")
+    (print "後退不可")))
+
+(fn scan-cmd []
+  "Scan all peripherals"
+  (print "=== 周辺機器スキャン ===")
+  (let [directions ["front" "back" "top" "bottom" "left" "right"]]
+    (each [_ dir (ipairs directions)]
+      (let [ptype (peripheral.getType dir)]
+        (print (.. dir ": " (or ptype "なし"))))))
+  (let [all-peripherals (peripheral.getNames)]
+    (print (.. "全周辺機器: " (table.concat all-peripherals ", ")))
+    (each [_ name (ipairs all-peripherals)]
+      (print (.. "  " name " = " (peripheral.getType name))))))
+
+(fn suck-cmd []
+  "Manual suck test"
+  (print "手動回収テスト中...")
+  (let [directions {"front" turtle.suck "back" turtle.suck "up" turtle.suckUp "down" turtle.suckDown}]
+    (each [dir func (pairs directions)]
+      (print (.. dir "をテスト中..."))
+      (if (func)
+          (print (.. "  " dir "から回収成功"))
+          (print (.. "  " dir "からは何もなし"))))))
+
+(fn test-chest-detection []
+  "Simple chest detection test"
+  (clear-screen)
+  (simple-chest-test)
+  (print "")
+  
+  (scan-all-peripherals)
+  (print "")
+  
+  (print "=== BASIC TURTLE TESTS ===")
+  (print-status (.. "turtle.detect(): " (tostring (turtle.detect))))
+  (print-status (.. "turtle.detectUp(): " (tostring (turtle.detectUp))))
+  (print-status (.. "turtle.detectDown(): " (tostring (turtle.detectDown))))
+  (print "")
+  
+  (print "=== MANUAL CHEST SEARCH ===")
+  (let [directions ["front" "back" "top" "bottom" "left" "right"]]
+    (each [_ dir (ipairs directions)]
+      (find-chest dir)))
+  
+  (print "")
+  (print "テスト完了！利用可能コマンド:")
+  (print "  chest - チェスト検知テスト")
+  (print "  move - 移動テスト")
+  (print "  scan - 周辺機器スキャン")
+  (print "  suck - 手動回収テスト"))
+
 (fn main []
   "Main program entry point with coordinate system"
   (clear-screen)
   (print "Empty Bucket Collector v2.0 with GPS")
   (print "====================================")
   (print "")
+  
+  ;; Check if user wants test mode
+  (print "オプション: [1] 通常モード [2] テストモード")
+  (print "選択してください (デフォルト: 1): ")
+  (let [choice (read)]
+    (if (= choice "2")
+        (test-chest-detection)
+        (do
   
   ;; Load configuration
   (load-config)
@@ -608,7 +696,7 @@
           (print-status (.. "Distance: " (calculate-distance current-pos target-chest) " blocks")))))
   
   (print "")
-  (print "Collection completed!"))
+  (print "Collection completed!")))))
 
 ;; Run the main function
 (main)

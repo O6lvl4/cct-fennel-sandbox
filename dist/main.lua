@@ -102,7 +102,7 @@ local function collect_empty_buckets(chest, direction)
     local attempts = 0
     while ((attempts < 64) and (collected < 16)) do
       attempts = (attempts + 1)
-      local empty_slot = find_empty_inventory_slot()
+      local empty_slot = __fnl_global__find_2dempty_2dinventory_2dslot()
       if empty_slot then
         turtle.select(empty_slot)
         local success
@@ -142,7 +142,7 @@ local function collect_empty_buckets(chest, direction)
     for slot, item in pairs(items) do
       if is_empty_bucket_3f(item) then
         bucket_count = (bucket_count + item.count)
-        local empty_slot = find_empty_inventory_slot()
+        local empty_slot = __fnl_global__find_2dempty_2dinventory_2dslot()
         if empty_slot then
           turtle.select(empty_slot)
           if (direction == "front") then
@@ -410,8 +410,8 @@ local function try_detour()
 end
 local function face_direction(target_dir)
   local directions = {"north", "east", "south", "west"}
-  local current_idx = (find_index(directions, current_facing) or 1)
-  local target_idx = (find_index(directions, target_dir) or 1)
+  local current_idx = (__fnl_global__find_2dindex(directions, current_facing) or 1)
+  local target_idx = (__fnl_global__find_2dindex(directions, target_dir) or 1)
   local turns = (target_idx - current_idx)
   if (turns == 0) then
     return nil
@@ -609,71 +609,169 @@ local function test_is_empty_bucket()
   end
   return print_status(("Tests passed: " .. passed .. "/" .. total))
 end
+local function simple_chest_test()
+  print("=== \227\131\129\227\130\167\227\130\185\227\131\136\230\164\156\231\159\165\227\131\134\227\130\185\227\131\136\227\130\179\227\131\158\227\131\179\227\131\137 ===")
+  print("'chest' - \227\131\129\227\130\167\227\130\185\227\131\136\230\164\156\231\159\165\227\131\134\227\130\185\227\131\136")
+  print("'move' - \231\167\187\229\139\149\227\131\134\227\130\185\227\131\136")
+  print("'scan' - \229\133\168\230\150\185\229\144\145\227\130\185\227\130\173\227\131\163\227\131\179")
+  return print("'suck' - \230\137\139\229\139\149\227\130\162\227\130\164\227\131\134\227\131\160\229\155\158\229\143\142")
+end
+local function chest_cmd()
+  print("=== \227\130\175\227\130\164\227\131\131\227\130\175\227\131\129\227\130\167\227\130\185\227\131\136\227\131\134\227\130\185\227\131\136 ===")
+  for _, dir in ipairs({"front", "back", "left", "right", "top", "bottom"}) do
+    do
+      local ptype = peripheral.getType(dir)
+      print((dir .. ": " .. (ptype or "\227\129\170\227\129\151")))
+    end
+    local chest = peripheral.wrap(dir)
+    if chest then
+      print((dir .. "\227\129\167\227\131\129\227\130\167\227\130\185\227\131\136\231\153\186\232\166\139"))
+      local items = chest.list()
+      print(("\227\130\162\227\130\164\227\131\134\227\131\160\230\149\176: " .. #items))
+    else
+    end
+  end
+  return print("\227\131\134\227\130\185\227\131\136\229\174\140\228\186\134")
+end
+local function move_cmd()
+  print("\231\167\187\229\139\149\227\131\134\227\130\185\227\131\136\228\184\173...")
+  if turtle.forward() then
+    print("\229\137\141\233\128\178\230\136\144\229\138\159")
+  else
+    print("\229\137\141\233\128\178\228\184\141\229\143\175 - \233\154\156\229\174\179\231\137\169\227\129\130\227\130\138")
+  end
+  if turtle.back() then
+    return print("\229\190\140\233\128\128\230\136\144\229\138\159")
+  else
+    return print("\229\190\140\233\128\128\228\184\141\229\143\175")
+  end
+end
+local function scan_cmd()
+  print("=== \229\145\168\232\190\186\230\169\159\229\153\168\227\130\185\227\130\173\227\131\163\227\131\179 ===")
+  do
+    local directions = {"front", "back", "top", "bottom", "left", "right"}
+    for _, dir in ipairs(directions) do
+      local ptype = peripheral.getType(dir)
+      print((dir .. ": " .. (ptype or "\227\129\170\227\129\151")))
+    end
+  end
+  local all_peripherals = peripheral.getNames()
+  print(("\229\133\168\229\145\168\232\190\186\230\169\159\229\153\168: " .. table.concat(all_peripherals, ", ")))
+  for _, name in ipairs(all_peripherals) do
+    print(("  " .. name .. " = " .. peripheral.getType(name)))
+  end
+  return nil
+end
+local function suck_cmd()
+  print("\230\137\139\229\139\149\229\155\158\229\143\142\227\131\134\227\130\185\227\131\136\228\184\173...")
+  local directions = {front = turtle.suck, back = turtle.suck, up = turtle.suckUp, down = turtle.suckDown}
+  for dir, func in pairs(directions) do
+    print((dir .. "\227\130\146\227\131\134\227\130\185\227\131\136\228\184\173..."))
+    if func() then
+      print(("  " .. dir .. "\227\129\139\227\130\137\229\155\158\229\143\142\230\136\144\229\138\159"))
+    else
+      print(("  " .. dir .. "\227\129\139\227\130\137\227\129\175\228\189\149\227\130\130\227\129\170\227\129\151"))
+    end
+  end
+  return nil
+end
+local function test_chest_detection()
+  clear_screen()
+  simple_chest_test()
+  print("")
+  scan_all_peripherals()
+  print("")
+  print("=== BASIC TURTLE TESTS ===")
+  print_status(("turtle.detect(): " .. tostring(turtle.detect())))
+  print_status(("turtle.detectUp(): " .. tostring(turtle.detectUp())))
+  print_status(("turtle.detectDown(): " .. tostring(turtle.detectDown())))
+  print("")
+  print("=== MANUAL CHEST SEARCH ===")
+  do
+    local directions = {"front", "back", "top", "bottom", "left", "right"}
+    for _, dir in ipairs(directions) do
+      find_chest(dir)
+    end
+  end
+  print("")
+  print("\227\131\134\227\130\185\227\131\136\229\174\140\228\186\134\239\188\129\229\136\169\231\148\168\229\143\175\232\131\189\227\130\179\227\131\158\227\131\179\227\131\137:")
+  print("  chest - \227\131\129\227\130\167\227\130\185\227\131\136\230\164\156\231\159\165\227\131\134\227\130\185\227\131\136")
+  print("  move - \231\167\187\229\139\149\227\131\134\227\130\185\227\131\136")
+  print("  scan - \229\145\168\232\190\186\230\169\159\229\153\168\227\130\185\227\130\173\227\131\163\227\131\179")
+  return print("  suck - \230\137\139\229\139\149\229\155\158\229\143\142\227\131\134\227\130\185\227\131\136")
+end
 local function main()
   clear_screen()
   print("Empty Bucket Collector v2.0 with GPS")
   print("====================================")
   print("")
-  load_config()
-  print_status(("Current position: " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z))
-  print_status(("Target chest: " .. target_chest.x .. ", " .. target_chest.y .. ", " .. target_chest.z))
-  update_current_position()
-  print("")
-  test_is_empty_bucket()
-  print("")
-  do
-    local distance = calculate_distance(current_pos, target_chest)
-    if (distance > 1) then
-      print_status(("Distance to chest: " .. distance .. " blocks - navigating..."))
-      navigate_to_chest()
-    else
-      print_status("Already adjacent to chest")
+  print("\227\130\170\227\131\151\227\130\183\227\131\167\227\131\179: [1] \233\128\154\229\184\184\227\131\162\227\131\188\227\131\137 [2] \227\131\134\227\130\185\227\131\136\227\131\162\227\131\188\227\131\137")
+  print("\233\129\184\230\138\158\227\129\151\227\129\166\227\129\143\227\129\160\227\129\149\227\129\132 (\227\131\135\227\131\149\227\130\169\227\131\171\227\131\136: 1): ")
+  local choice = read()
+  if (choice == "2") then
+    return test_chest_detection()
+  else
+    load_config()
+    print_status(("Current position: " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z))
+    print_status(("Target chest: " .. target_chest.x .. ", " .. target_chest.y .. ", " .. target_chest.z))
+    update_current_position()
+    print("")
+    test_is_empty_bucket()
+    print("")
+    do
+      local distance = calculate_distance(current_pos, target_chest)
+      if (distance > 1) then
+        print_status(("Distance to chest: " .. distance .. " blocks - navigating..."))
+        navigate_to_chest()
+      else
+        print_status("Already adjacent to chest")
+      end
     end
-  end
-  scan_all_peripherals()
-  print("")
-  do
-    local preferred_direction = get_direction_to_target()
-    local directions
-    if preferred_direction then
-      directions = {preferred_direction, "front", "back", "top", "bottom", "left", "right"}
-    else
-      directions = {"front", "back", "top", "bottom", "left", "right"}
-    end
-    print_status(("Preferred direction: " .. (preferred_direction or "none")))
-    local chest_found = false
-    local chest = nil
-    local direction = nil
-    for _, dir in ipairs(directions) do
-      if not chest_found then
-        local found_chest = find_chest(dir)
-        if found_chest then
-          chest = found_chest
-          direction = dir
-          chest_found = true
-          print_status(("Found chest: " .. dir))
+    scan_all_peripherals()
+    print("")
+    do
+      local preferred_direction = get_direction_to_target()
+      local directions
+      if preferred_direction then
+        directions = {preferred_direction, "front", "back", "top", "bottom", "left", "right"}
+      else
+        directions = {"front", "back", "top", "bottom", "left", "right"}
+      end
+      print_status(("Preferred direction: " .. (preferred_direction or "none")))
+      local chest_found = false
+      local chest = nil
+      local direction = nil
+      for _, dir in ipairs(directions) do
+        if not chest_found then
+          local found_chest = find_chest(dir)
+          if found_chest then
+            chest = found_chest
+            direction = dir
+            chest_found = true
+            print_status(("Found chest: " .. dir))
+          else
+          end
         else
         end
+      end
+      if chest_found then
+        print_status("Starting bucket collection...")
+        local collected = collect_empty_buckets(chest, direction)
+        if (collected > 0) then
+          print_status(("Successfully collected " .. collected .. " empty buckets!"))
+        else
+          print_status("No empty buckets found in chest.")
+        end
       else
+        print_status("No chest found in any direction!")
+        print_status("Final position check:")
+        print_status(("Current: " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z .. " facing " .. current_facing))
+        print_status(("Target: " .. target_chest.x .. ", " .. target_chest.y .. ", " .. target_chest.z))
+        print_status(("Distance: " .. calculate_distance(current_pos, target_chest) .. " blocks"))
       end
     end
-    if chest_found then
-      print_status("Starting bucket collection...")
-      local collected = collect_empty_buckets(chest, direction)
-      if (collected > 0) then
-        print_status(("Successfully collected " .. collected .. " empty buckets!"))
-      else
-        print_status("No empty buckets found in chest.")
-      end
-    else
-      print_status("No chest found in any direction!")
-      print_status("Final position check:")
-      print_status(("Current: " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z .. " facing " .. current_facing))
-      print_status(("Target: " .. target_chest.x .. ", " .. target_chest.y .. ", " .. target_chest.z))
-      print_status(("Distance: " .. calculate_distance(current_pos, target_chest) .. " blocks"))
-    end
+    print("")
+    return print("Collection completed!")
   end
-  print("")
-  return print("Collection completed!")
 end
 return main()

@@ -17,7 +17,8 @@
       "Read(/Users/aid-on/.ssh/**)",
       "Bash(ssh-add:*)",
       "Bash(ssh:*)",
-      "Bash(fennel:*)"
+      "Bash(fennel:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []
