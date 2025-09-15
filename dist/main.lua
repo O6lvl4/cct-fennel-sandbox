@@ -102,7 +102,7 @@ local function collect_empty_buckets(chest, direction)
     local attempts = 0
     while ((attempts < 64) and (collected < 16)) do
       attempts = (attempts + 1)
-      local empty_slot = __fnl_global__find_2dempty_2dinventory_2dslot()
+      local empty_slot = find_empty_inventory_slot()
       if empty_slot then
         turtle.select(empty_slot)
         local success
@@ -142,7 +142,7 @@ local function collect_empty_buckets(chest, direction)
     for slot, item in pairs(items) do
       if is_empty_bucket_3f(item) then
         bucket_count = (bucket_count + item.count)
-        local empty_slot = __fnl_global__find_2dempty_2dinventory_2dslot()
+        local empty_slot = find_empty_inventory_slot()
         if empty_slot then
           turtle.select(empty_slot)
           if (direction == "front") then

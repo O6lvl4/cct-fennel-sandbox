@@ -112,7 +112,7 @@
         ;; For manual chests, try to suck items until nothing more can be collected
         (while (and (< attempts 64) (< collected 16)) ; Max 64 attempts, 16 items
           (set attempts (+ attempts 1))
-          (let [empty-slot (find-empty-inventory-slot)]
+          (let [empty-slot (find_empty_inventory_slot)]
             (if empty-slot
                 (do
                   (turtle.select empty-slot)
@@ -145,7 +145,7 @@
         (each [slot item (pairs items)]
           (when (is-empty-bucket? item)
             (set bucket-count (+ bucket-count item.count))
-            (let [empty-slot (find-empty-inventory-slot)]
+            (let [empty-slot (find_empty_inventory_slot)]
               (if empty-slot
                   (do
                     (turtle.select empty-slot)
@@ -167,7 +167,7 @@
         (print-status (.. "Total empty buckets collected: " collected))
         collected)))
 
-(fn find-empty-inventory-slot []
+(fn find_empty_inventory_slot []
   "Find first empty inventory slot"
   (for [slot 1 16]
     (turtle.select slot)
