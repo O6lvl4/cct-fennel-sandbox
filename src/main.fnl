@@ -1,9 +1,15 @@
-;; CC:Tweaked Empty Bucket Collector
-;; Collects only empty buckets from specified chest
+;; CC:Tweaked Empty Bucket Collector with Coordinate System
+;; Collects only empty buckets from specified chest with GPS tracking
 
 (local turtle turtle)
 (local peripheral peripheral)
 (local term term)
+(local fs fs)
+
+;; Global coordinates configuration
+(var current-pos {:x -1838 :y 64 :z -131})
+(var target-chest {:x -1836 :y 63 :z -127})
+(local config-file "bucket_collector_config.txt")
 
 (fn clear-screen []
   "Clear the terminal screen"
@@ -86,6 +92,169 @@
         (lua "return slot"))))
   nil)
 
+(fn save-config []
+  "Save current configuration to file"
+  (let [config-data {:current-pos current-pos
+                     :target-chest target-chest}
+        file (fs.open config-file "w")]
+    (when file
+      (file.write (textutils.serialize config-data))
+      (file.close)
+      (print-status "Configuration saved to file"))))
+
+(fn load-config []
+  "Load configuration from file"
+  (when (fs.exists config-file)
+    (let [file (fs.open config-file "r")]
+      (when file
+        (let [data (file.readAll)]
+          (file.close)
+          (let [config (textutils.unserialize data)]
+            (when config
+              (set current-pos config.current-pos)
+              (set target-chest config.target-chest)
+              (print-status "Configuration loaded from file"))))))))
+
+(fn get-gps-position []
+  "Get current GPS position"
+  (let [x (gps.locate 5)]
+    (if x
+        (let [y (select 2 (gps.locate 5))
+              z (select 3 (gps.locate 5))]
+          {:x x :y y :z z})
+        nil)))
+
+(fn update-current-position []
+  "Update current position using GPS"
+  (let [gps-pos (get-gps-position)]
+    (if gps-pos
+        (do
+          (set current-pos gps-pos)
+          (save-config)
+          (print-status (.. "Position updated: " current-pos.x ", " current-pos.y ", " current-pos.z)))
+        (print-status "GPS not available, using stored position"))))
+
+(fn calculate-distance [pos1 pos2]
+  "Calculate Manhattan distance between two positions"
+  (+ (math.abs (- pos1.x pos2.x))
+     (math.abs (- pos1.y pos2.y))
+     (math.abs (- pos1.z pos2.z))))
+
+(fn get-direction-to-target []
+  "Calculate direction to target chest"
+  (let [dx (- target-chest.x current-pos.x)
+        dy (- target-chest.y current-pos.y)
+        dz (- target-chest.z current-pos.z)]
+    (print-status (.. "Target offset: x=" dx " y=" dy " z=" dz))
+    (cond
+      (and (= dx 2) (= dy -1) (= dz 4)) "front"
+      (and (= dx -2) (= dy 1) (= dz -4)) "back" 
+      (and (= dy 1) (< (math.abs dx) 2) (< (math.abs dz) 2)) "top"
+      (and (= dy -1) (< (math.abs dx) 2) (< (math.abs dz) 2)) "bottom"
+      :else nil)))
+
+(fn move-towards-target []
+  "Move turtle one step towards the target chest"
+  (let [dx (- target-chest.x current-pos.x)
+        dy (- target-chest.y current-pos.y)
+        dz (- target-chest.z current-pos.z)]
+    
+    (print-status (.. "Current: " current-pos.x ", " current-pos.y ", " current-pos.z))
+    (print-status (.. "Target: " target-chest.x ", " target-chest.y ", " target-chest.z))
+    (print-status (.. "Delta: dx=" dx " dy=" dy " dz=" dz))
+    
+    ;; Move in X direction first (East/West)
+    (when (not= dx 0)
+      (if (> dx 0)
+          (do 
+            (print-status "Moving East (+X)")
+            (turtle.turnRight)
+            (if (turtle.forward)
+                (do
+                  (set current-pos.x (+ current-pos.x 1))
+                  (print-status "Moved East successfully"))
+                (print-status "Failed to move East - blocked"))
+            (turtle.turnLeft))
+          (do 
+            (print-status "Moving West (-X)")
+            (turtle.turnLeft)
+            (if (turtle.forward)
+                (do
+                  (set current-pos.x (- current-pos.x 1))
+                  (print-status "Moved West successfully"))
+                (print-status "Failed to move West - blocked"))
+            (turtle.turnRight))))
+    
+    ;; Move in Y direction (Up/Down)
+    (when (not= dy 0)
+      (if (> dy 0)
+          (do 
+            (print-status "Moving Up (+Y)")
+            (if (turtle.up)
+                (do
+                  (set current-pos.y (+ current-pos.y 1))
+                  (print-status "Moved Up successfully"))
+                (print-status "Failed to move Up - blocked")))
+          (do 
+            (print-status "Moving Down (-Y)")
+            (if (turtle.down)
+                (do
+                  (set current-pos.y (- current-pos.y 1))
+                  (print-status "Moved Down successfully"))
+                (print-status "Failed to move Down - blocked")))))
+    
+    ;; Move in Z direction (North/South)
+    (when (not= dz 0)
+      (if (> dz 0)
+          (do 
+            (print-status "Moving North (+Z)")
+            (if (turtle.forward)
+                (do
+                  (set current-pos.z (+ current-pos.z 1))
+                  (print-status "Moved North successfully"))
+                (print-status "Failed to move North - blocked")))
+          (do 
+            (print-status "Moving South (-Z)")
+            (turtle.turnRight)
+            (turtle.turnRight)
+            (if (turtle.forward)
+                (do
+                  (set current-pos.z (- current-pos.z 1))
+                  (print-status "Moved South successfully"))
+                (print-status "Failed to move South - blocked"))
+            (turtle.turnRight)
+            (turtle.turnRight))))
+    
+    (save-config)))
+
+(fn navigate-to-chest []
+  "Navigate turtle to chest position with step-by-step movement"
+  (let [initial-distance (calculate-distance current-pos target-chest)]
+    (print-status (.. "Initial distance to chest: " initial-distance " blocks"))
+    
+    (when (> initial-distance 1)
+      (print-status "Starting navigation to chest...")
+      
+      ;; Navigate adjacent to chest (1 block away)
+      (var attempts 0)
+      (var current-distance initial-distance)
+      
+      (while (and (> current-distance 1) (< attempts 20))
+        (set attempts (+ attempts 1))
+        (print-status (.. "Navigation attempt " attempts "/20"))
+        
+        (move-towards-target)
+        (set current-distance (calculate-distance current-pos target-chest))
+        (print-status (.. "Distance after move: " current-distance " blocks"))
+        
+        (os.sleep 0.5))
+      
+      (if (<= current-distance 1)
+          (print-status "Successfully navigated to chest area!")
+          (print-status (.. "Navigation incomplete after " attempts " attempts")))
+      
+      (save-config))))
+
 (fn test-is-empty-bucket []
   "Test function for is-empty-bucket?"
   (print-status "Testing is-empty-bucket? function...")
@@ -114,18 +283,38 @@
     (print-status (.. "Tests passed: " passed "/" total))))
 
 (fn main []
-  "Main program entry point"
+  "Main program entry point with coordinate system"
   (clear-screen)
-  (print "Empty Bucket Collector v1.0")
-  (print "===========================")
+  (print "Empty Bucket Collector v2.0 with GPS")
+  (print "====================================")
+  (print "")
+  
+  ;; Load configuration
+  (load-config)
+  (print-status (.. "Current position: " current-pos.x ", " current-pos.y ", " current-pos.z))
+  (print-status (.. "Target chest: " target-chest.x ", " target-chest.y ", " target-chest.z))
+  
+  ;; Update position if GPS available
+  (update-current-position)
   (print "")
   
   ;; Run tests first
   (test-is-empty-bucket)
   (print "")
   
-  ;; Try to find chest in each direction
-  (let [directions ["front" "back" "top" "bottom"]]
+  ;; Always try to navigate to chest if not adjacent
+  (let [distance (calculate-distance current-pos target-chest)]
+    (if (> distance 1)
+        (do
+          (print-status (.. "Distance to chest: " distance " blocks - navigating..."))
+          (navigate-to-chest))
+        (print-status "Already adjacent to chest")))
+  
+  ;; Try to find chest, preferring calculated direction
+  (let [preferred-direction (get-direction-to-target)
+        directions (if preferred-direction 
+                      [preferred-direction "front" "back" "top" "bottom"]
+                      ["front" "back" "top" "bottom"])]
     (var chest-found false)
     (var chest nil)
     (var direction nil)
