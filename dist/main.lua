@@ -2,7 +2,7 @@ local turtle = turtle
 local peripheral = peripheral
 local term = term
 local fs = fs
-local current_pos = {x = -1838, y = 64, z = -131}
+local current_pos = {x = -1841, y = 64, z = -131}
 local target_chest = {x = -1836, y = 63, z = -127}
 local config_file = "bucket_collector_config.txt"
 local function clear_screen()
@@ -55,7 +55,7 @@ local function collect_empty_buckets(chest, direction)
   for slot, item in pairs(items) do
     if is_empty_bucket_3f(item) then
       bucket_count = (bucket_count + item.count)
-      local empty_slot = find_empty_inventory_slot()
+      local empty_slot = __fnl_global__find_2dempty_2dinventory_2dslot()
       if empty_slot then
         turtle.select(empty_slot)
         if (direction == "front") then
@@ -159,57 +159,67 @@ local function get_direction_to_target()
   print_status(("Target offset: x=" .. dx .. " y=" .. dy .. " z=" .. dz))
   if ((dx == 1) and (dy == 0) and (dz == 0)) then
     return "front"
-  elseif ((dx == -1) and (dy == 0) and (dz == 0)) then
-    return "back"
-  elseif ((dx == 0) and (dy == 1) and (dz == 0)) then
-    return "top"
-  elseif ((dx == 0) and (dy == -1) and (dz == 0)) then
-    return "bottom"
-  elseif ((dx == 0) and (dy == 0) and (dz == 1)) then
-    return "front"
-  elseif ((dx == 0) and (dy == 0) and (dz == -1)) then
-    return "back"
   else
-    return nil
+    if ((dx == -1) and (dy == 0) and (dz == 0)) then
+      return "back"
+    else
+      if ((dx == 0) and (dy == 1) and (dz == 0)) then
+        return "top"
+      else
+        if ((dx == 0) and (dy == -1) and (dz == 0)) then
+          return "bottom"
+        else
+          if ((dx == 0) and (dy == 0) and (dz == 1)) then
+            return "front"
+          else
+            if ((dx == 0) and (dy == 0) and (dz == -1)) then
+              return "back"
+            else
+              return nil
+            end
+          end
+        end
+      end
+    end
   end
 end
-local function try_detour()
+local function try_detour(target_direction)
   print_status("Attempting obstacle avoidance...")
   turtle.turnLeft()
   if turtle.forward() then
-    print_status("Detour: moved left")
+    print_status("Detour: moved left, trying to continue")
     turtle.turnRight()
     if turtle.forward() then
-      print_status("Detour: moved forward after left turn")
+      print_status("Detour successful!")
       turtle.turnLeft()
       return true
     else
-      print_status("Detour: forward blocked after left turn, returning")
+      print_status("Detour failed, undoing")
       turtle.turnLeft()
       turtle.forward()
       turtle.turnRight()
       return false
     end
   else
-    print_status("Detour: left blocked, trying right")
+    print_status("Left blocked, trying right")
     turtle.turnRight()
     turtle.turnRight()
     if turtle.forward() then
-      print_status("Detour: moved right")
+      print_status("Detour: moved right, trying to continue")
       turtle.turnLeft()
       if turtle.forward() then
-        print_status("Detour: moved forward after right turn")
+        print_status("Right detour successful!")
         turtle.turnRight()
         return true
       else
-        print_status("Detour: forward blocked after right turn, returning")
+        print_status("Right detour failed, undoing")
         turtle.turnRight()
         turtle.forward()
         turtle.turnLeft()
         return false
       end
     else
-      print_status("Detour: both left and right blocked")
+      print_status("Both directions blocked")
       turtle.turnLeft()
       return false
     end
@@ -233,8 +243,7 @@ local function move_towards_target()
         print_status("Successfully moved East")
       else
         print_status("Failed to move East - trying detour")
-        if try_detour() then
-          current_pos.x = (current_pos.x + 1)
+        if try_detour("east") then
           moved = true
           tried_detour = true
           print_status("Detour successful, moved East")
@@ -251,8 +260,7 @@ local function move_towards_target()
         print_status("Successfully moved West")
       else
         print_status("Failed to move West - trying detour")
-        if try_detour() then
-          current_pos.x = (current_pos.x - 1)
+        if try_detour("west") then
           moved = true
           tried_detour = true
           print_status("Detour successful, moved West")
@@ -272,8 +280,7 @@ local function move_towards_target()
         print_status("Successfully moved North")
       else
         print_status("Failed to move North - trying detour")
-        if try_detour() then
-          current_pos.z = (current_pos.z + 1)
+        if try_detour("north") then
           moved = true
           tried_detour = true
           print_status("Detour successful, moved North")
@@ -290,8 +297,7 @@ local function move_towards_target()
         print_status("Successfully moved South")
       else
         print_status("Failed to move South - trying detour")
-        if try_detour() then
-          current_pos.z = (current_pos.z - 1)
+        if try_detour("south") then
           moved = true
           tried_detour = true
           print_status("Detour successful, moved South")
@@ -369,8 +375,11 @@ local function navigate_to_chest()
         print_status("Adjusting final position...")
         if (current_distance == 0) then
           turtle.back()
-        elseif (current_distance > 1) then
-          move_towards_target()
+        else
+          if (current_distance > 1) then
+            move_towards_target()
+          else
+          end
         end
       else
       end

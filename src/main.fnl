@@ -6,8 +6,8 @@
 (local term term)
 (local fs fs)
 
-;; Global coordinates configuration
-(var current-pos {:x -1838 :y 64 :z -131})
+;; Global coordinates configuration (update these based on current position)
+(var current-pos {:x -1841 :y 64 :z -131})
 (var target-chest {:x -1836 :y 63 :z -127})
 (local config-file "bucket_collector_config.txt")
 
@@ -145,58 +145,62 @@
         dy (- target-chest.y current-pos.y)
         dz (- target-chest.z current-pos.z)]
     (print-status (.. "Target offset: x=" dx " y=" dy " z=" dz))
-    (cond
-      ;; Direct adjacent positions (1 block away)
-      (and (= dx 1) (= dy 0) (= dz 0)) "front"    ; Chest is +X (East)
-      (and (= dx -1) (= dy 0) (= dz 0)) "back"    ; Chest is -X (West)  
-      (and (= dx 0) (= dy 1) (= dz 0)) "top"      ; Chest is +Y (Up)
-      (and (= dx 0) (= dy -1) (= dz 0)) "bottom"  ; Chest is -Y (Down)
-      (and (= dx 0) (= dy 0) (= dz 1)) "front"    ; Chest is +Z (North) - assuming facing North
-      (and (= dx 0) (= dy 0) (= dz -1)) "back"    ; Chest is -Z (South)
-      :else nil)))
+    (if (and (= dx 1) (= dy 0) (= dz 0))
+        "front"    ; Chest is +X (East)
+        (if (and (= dx -1) (= dy 0) (= dz 0))
+            "back"    ; Chest is -X (West)  
+            (if (and (= dx 0) (= dy 1) (= dz 0))
+                "top"      ; Chest is +Y (Up)
+                (if (and (= dx 0) (= dy -1) (= dz 0))
+                    "bottom"  ; Chest is -Y (Down)
+                    (if (and (= dx 0) (= dy 0) (= dz 1))
+                        "front"    ; Chest is +Z (North)
+                        (if (and (= dx 0) (= dy 0) (= dz -1))
+                            "back"    ; Chest is -Z (South)
+                            nil))))))))
 
-(fn try-detour []
+(fn try-detour [target-direction]
   "Try to move around obstacles by going left or right"
   (print-status "Attempting obstacle avoidance...")
   
-  ;; Try going left (turn left, forward, turn right, forward, turn left)
+  ;; Simple detour: just try left, then right
   (turtle.turnLeft)
   (if (turtle.forward)
       (do
-        (print-status "Detour: moved left")
-        (turtle.turnRight)
+        (print-status "Detour: moved left, trying to continue")
+        (turtle.turnRight) ;; Face original direction
         (if (turtle.forward)
             (do
-              (print-status "Detour: moved forward after left turn")
-              (turtle.turnLeft)
+              (print-status "Detour successful!")
+              (turtle.turnLeft) ;; Return to original facing
               true)
             (do
-              (print-status "Detour: forward blocked after left turn, returning")
+              (print-status "Detour failed, undoing")
               (turtle.turnLeft)
-              (turtle.forward) ;; Return to starting position
+              (turtle.forward) ;; Return
               (turtle.turnRight)
               false)))
       (do
-        (print-status "Detour: left blocked, trying right")
-        (turtle.turnRight) ;; Return to original facing
+        (print-status "Left blocked, trying right")
+        (turtle.turnRight) ;; Return to original
         (turtle.turnRight) ;; Turn right
         (if (turtle.forward)
             (do
-              (print-status "Detour: moved right")
-              (turtle.turnLeft)
+              (print-status "Detour: moved right, trying to continue")
+              (turtle.turnLeft) ;; Face original direction
               (if (turtle.forward)
                   (do
-                    (print-status "Detour: moved forward after right turn")
-                    (turtle.turnRight)
+                    (print-status "Right detour successful!")
+                    (turtle.turnRight) ;; Return to original facing
                     true)
                   (do
-                    (print-status "Detour: forward blocked after right turn, returning")
+                    (print-status "Right detour failed, undoing")
                     (turtle.turnRight)
-                    (turtle.forward) ;; Return to starting position
+                    (turtle.forward) ;; Return
                     (turtle.turnLeft)
                     false)))
             (do
-              (print-status "Detour: both left and right blocked")
+              (print-status "Both directions blocked")
               (turtle.turnLeft) ;; Return to original facing
               false)))))
 
@@ -225,8 +229,7 @@
                   (print-status "Successfully moved East"))
                 (do
                   (print-status "Failed to move East - trying detour")
-                  (when (try-detour)
-                    (set current-pos.x (+ current-pos.x 1))
+                  (when (try-detour "east")
                     (set moved true)
                     (set tried-detour true)
                     (print-status "Detour successful, moved East"))))
@@ -241,8 +244,7 @@
                   (print-status "Successfully moved West"))
                 (do
                   (print-status "Failed to move West - trying detour")
-                  (when (try-detour)
-                    (set current-pos.x (- current-pos.x 1))
+                  (when (try-detour "west")
                     (set moved true)
                     (set tried-detour true)
                     (print-status "Detour successful, moved West"))))
@@ -260,8 +262,7 @@
                   (print-status "Successfully moved North"))
                 (do
                   (print-status "Failed to move North - trying detour")
-                  (when (try-detour)
-                    (set current-pos.z (+ current-pos.z 1))
+                  (when (try-detour "north")
                     (set moved true)
                     (set tried-detour true)
                     (print-status "Detour successful, moved North")))))
@@ -276,8 +277,7 @@
                   (print-status "Successfully moved South"))
                 (do
                   (print-status "Failed to move South - trying detour")
-                  (when (try-detour)
-                    (set current-pos.z (- current-pos.z 1))
+                  (when (try-detour "south")
                     (set moved true)
                     (set tried-detour true)
                     (print-status "Detour successful, moved South"))))
@@ -354,11 +354,10 @@
               (when (not= current-distance 1)
                 (print-status "Adjusting final position...")
                 ;; Move to be exactly 1 block away from chest
-                (cond
-                  ;; If too close (on top of chest), move away
-                  (= current-distance 0) (turtle.back)
-                  ;; If slightly off, try to adjust
-                  (> current-distance 1) (move-towards-target)))))
+                (if (= current-distance 0)
+                    (turtle.back)
+                    (when (> current-distance 1)
+                      (move-towards-target))))))
           (print-status (.. "Navigation incomplete after " attempts " attempts")))
       
       (save-config))))
