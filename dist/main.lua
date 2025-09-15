@@ -17,78 +17,162 @@ end
 local function is_empty_bucket_3f(item)
   return (item and (item.name == "minecraft:bucket") and ((item.count == nil) or (item.count == 0) or (item.count >= 1)))
 end
+local function is_chest_block_3f(block_name)
+  return ((block_name == "minecraft:chest") or (block_name == "minecraft:trapped_chest") or (block_name == "ironchests:iron_chest") or (block_name == "ironchests:gold_chest") or (block_name == "ironchests:diamond_chest") or (block_name == "minecraft:ender_chest"))
+end
+local function inspect_direction(direction)
+  local has_block, block_data = nil, nil
+  if (direction == "front") then
+    has_block, block_data = turtle.inspect()
+  elseif (direction == "up") then
+    has_block, block_data = turtle.inspectUp()
+  elseif (direction == "down") then
+    has_block, block_data = turtle.inspectDown()
+  else
+    has_block, block_data = false, {}
+  end
+  if has_block then
+    return {["block-name"] = block_data.name, block = block_data}
+  else
+    return {["block-name"] = nil, block = nil}
+  end
+end
 local function find_chest(direction)
   local chest_type
   if (direction == "front") then
     chest_type = peripheral.getType("front")
+  elseif (direction == "back") then
+    chest_type = peripheral.getType("back")
+  elseif (direction == "top") then
+    chest_type = peripheral.getType("top")
+  elseif (direction == "bottom") then
+    chest_type = peripheral.getType("bottom")
+  elseif (direction == "left") then
+    chest_type = peripheral.getType("left")
+  elseif (direction == "right") then
+    chest_type = peripheral.getType("right")
   else
-    if (direction == "back") then
-      chest_type = peripheral.getType("back")
+    chest_type = nil
+  end
+  local inspect_result
+  if ((direction == "front") or (direction == "up") or (direction == "down")) then
+    inspect_result = inspect_direction(direction)
+  else
+    inspect_result = {["block-name"] = nil}
+  end
+  print_status(("Checking " .. direction .. ":"))
+  print_status(("  Peripheral: " .. (chest_type or "nothing")))
+  print_status(("  Inspect: " .. (inspect_result["block-name"] or "nothing")))
+  local is_chest_peripheral = ((chest_type == "minecraft:chest") or (chest_type == "minecraft:trapped_chest") or (chest_type == "ironchests:iron_chest") or (chest_type == "ironchests:gold_chest") or (chest_type == "ironchests:diamond_chest"))
+  local is_chest_inspect = is_chest_block_3f(inspect_result["block-name"])
+  if (is_chest_peripheral or is_chest_inspect) then
+    print_status(("\226\156\147 Found chest in " .. direction .. "!"))
+    if is_chest_peripheral then
+      return peripheral.wrap(direction)
     else
-      if (direction == "top") then
-        chest_type = peripheral.getType("top")
+      local wrapped = peripheral.wrap(direction)
+      if wrapped then
+        return wrapped
       else
-        if (direction == "bottom") then
-          chest_type = peripheral.getType("bottom")
-        else
-          chest_type = nil
-        end
+        print_status("Using manual chest interface")
+        return {direction = direction, type = "manual"}
       end
     end
-  end
-  print_status(("Checking " .. direction .. ": " .. (chest_type or "nothing")))
-  if ((chest_type == "minecraft:chest") or (chest_type == "minecraft:trapped_chest") or (chest_type == "ironchests:iron_chest") or (chest_type == "ironchests:gold_chest") or (chest_type == "ironchests:diamond_chest")) then
-    print_status(("Found chest in " .. direction .. "!"))
-    return peripheral.wrap(direction)
   else
-    print_status(("No chest found in " .. direction))
+    print_status(("\226\156\151 No chest in " .. direction))
     return nil
   end
 end
 local function get_chest_items(chest)
   if chest then
-    return chest.list()
+    if (chest.type == "manual") then
+      print_status("Manual chest detected - cannot list items remotely")
+      return {}
+    else
+      return chest.list()
+    end
   else
     return {}
   end
 end
 local function collect_empty_buckets(chest, direction)
-  local items = get_chest_items(chest)
-  local collected = 0
-  local bucket_count = 0
-  for slot, item in pairs(items) do
-    if is_empty_bucket_3f(item) then
-      bucket_count = (bucket_count + item.count)
-      local empty_slot = __fnl_global__find_2dempty_2dinventory_2dslot()
+  if (chest and (chest.type == "manual")) then
+    print_status("Manual chest detected - attempting to collect items")
+    local collected = 0
+    local attempts = 0
+    while ((attempts < 64) and (collected < 16)) do
+      attempts = (attempts + 1)
+      local empty_slot = find_empty_inventory_slot()
       if empty_slot then
         turtle.select(empty_slot)
+        local success
         if (direction == "front") then
-          turtle.suck()
+          success = turtle.suck()
+        elseif (direction == "up") then
+          success = turtle.suckUp()
+        elseif (direction == "down") then
+          success = turtle.suckDown()
         else
-          if (direction == "back") then
-            turtle.suckBack()
+          success = false
+        end
+        if success then
+          local item = turtle.getItemDetail()
+          if (item and is_empty_bucket_3f(item)) then
+            collected = (collected + item.count)
+            print_status(("Collected " .. item.count .. " empty bucket(s)"))
           else
-            if (direction == "top") then
-              turtle.suckUp()
+            if item then
+              print_status(("Collected non-bucket item: " .. item.name))
             else
-              if (direction == "bottom") then
-                turtle.suckDown()
+            end
+          end
+        else
+          break
+        end
+      else
+        break
+      end
+    end
+    print_status(("Manual collection completed: " .. collected .. " empty buckets"))
+    return collected
+  else
+    local items = get_chest_items(chest)
+    local collected = 0
+    local bucket_count = 0
+    for slot, item in pairs(items) do
+      if is_empty_bucket_3f(item) then
+        bucket_count = (bucket_count + item.count)
+        local empty_slot = find_empty_inventory_slot()
+        if empty_slot then
+          turtle.select(empty_slot)
+          if (direction == "front") then
+            turtle.suck()
+          else
+            if (direction == "back") then
+              turtle.suckBack()
+            else
+              if (direction == "top") then
+                turtle.suckUp()
               else
+                if (direction == "bottom") then
+                  turtle.suckDown()
+                else
+                end
               end
             end
           end
+          collected = (collected + 1)
+          print_status(("Collected empty bucket from slot " .. slot))
+        else
+          print_status("Inventory full! Cannot collect more buckets")
+          break
         end
-        collected = (collected + 1)
-        print_status(("Collected empty bucket from slot " .. slot))
       else
-        print_status("Inventory full! Cannot collect more buckets")
-        break
       end
-    else
     end
+    print_status(("Total empty buckets collected: " .. collected))
+    return collected
   end
-  print_status(("Total empty buckets collected: " .. collected))
-  return collected
 end
 local function find_empty_inventory_slot()
   for slot = 1, 16 do
@@ -208,25 +292,25 @@ local function check_obstacles()
   local front = turtle.detect()
   local up = turtle.detectUp()
   local down = turtle.detectDown()
-  local _25_
+  local _34_
   if front then
-    _25_ = "YES"
+    _34_ = "YES"
   else
-    _25_ = "NO"
+    _34_ = "NO"
   end
-  local _27_
+  local _36_
   if up then
-    _27_ = "YES"
+    _36_ = "YES"
   else
-    _27_ = "NO"
+    _36_ = "NO"
   end
-  local _29_
+  local _38_
   if down then
-    _29_ = "YES"
+    _38_ = "YES"
   else
-    _29_ = "NO"
+    _38_ = "NO"
   end
-  print_status(("Obstacles - Front: " .. _25_ .. " Up: " .. _27_ .. " Down: " .. _29_))
+  print_status(("Obstacles - Front: " .. _34_ .. " Up: " .. _36_ .. " Down: " .. _38_))
   return {front = front, up = up, down = down}
 end
 local function scan_all_peripherals()

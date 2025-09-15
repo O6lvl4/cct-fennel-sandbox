@@ -28,66 +28,144 @@
        (= item.name "minecraft:bucket")
        (or (= item.count nil) (= item.count 0) (>= item.count 1))))
 
+(fn is-chest-block? [block-name]
+  "Check if block name represents a chest"
+  (or (= block-name "minecraft:chest")
+      (= block-name "minecraft:trapped_chest") 
+      (= block-name "ironchests:iron_chest")
+      (= block-name "ironchests:gold_chest")
+      (= block-name "ironchests:diamond_chest")
+      (= block-name "minecraft:ender_chest")))
+
+(fn inspect-direction [direction]
+  "Inspect block in specified direction using turtle.inspect"
+  (let [(has-block block-data) (if (= direction "front") (turtle.inspect)
+                                   (= direction "up") (turtle.inspectUp)
+                                   (= direction "down") (turtle.inspectDown)
+                                   (values false {}))]
+    (if has-block
+        {:block-name block-data.name :block block-data}
+        {:block-name nil :block nil})))
+
 (fn find-chest [direction]
-  "Find chest in specified direction with detailed logging"
-  (let [chest-type (if (= direction "front") 
-                       (peripheral.getType "front")
-                       (if (= direction "back")
-                           (peripheral.getType "back")
-                           (if (= direction "top")
-                               (peripheral.getType "top")
-                               (if (= direction "bottom")
-                                   (peripheral.getType "bottom")
-                                   nil))))]
-    (print-status (.. "Checking " direction ": " (or chest-type "nothing")))
-    (if (or (= chest-type "minecraft:chest")
-            (= chest-type "minecraft:trapped_chest")
-            (= chest-type "ironchests:iron_chest")
-            (= chest-type "ironchests:gold_chest")
-            (= chest-type "ironchests:diamond_chest"))
-        (do
-          (print-status (.. "Found chest in " direction "!"))
-          (peripheral.wrap direction))
-        (do
-          (print-status (.. "No chest found in " direction))
-          nil))))
+  "Find chest using both peripheral and inspect methods"
+  ;; Method 1: peripheral.getType
+  (let [chest-type (if (= direction "front") (peripheral.getType "front")
+                       (= direction "back") (peripheral.getType "back")
+                       (= direction "top") (peripheral.getType "top")
+                       (= direction "bottom") (peripheral.getType "bottom")
+                       (= direction "left") (peripheral.getType "left")
+                       (= direction "right") (peripheral.getType "right")
+                       nil)]
+    
+    ;; Method 2: turtle.inspect (for front/up/down only)
+    (let [inspect-result (if (or (= direction "front") (= direction "up") (= direction "down"))
+                             (inspect-direction direction)
+                             {:block-name nil})]
+      
+      (print-status (.. "Checking " direction ":"))
+      (print-status (.. "  Peripheral: " (or chest-type "nothing")))
+      (print-status (.. "  Inspect: " (or inspect-result.block-name "nothing")))
+      
+      ;; Check both methods
+      (let [is-chest-peripheral (or (= chest-type "minecraft:chest")
+                                    (= chest-type "minecraft:trapped_chest")
+                                    (= chest-type "ironchests:iron_chest")
+                                    (= chest-type "ironchests:gold_chest")
+                                    (= chest-type "ironchests:diamond_chest"))
+            is-chest-inspect (is-chest-block? inspect-result.block-name)]
+        
+        (if (or is-chest-peripheral is-chest-inspect)
+            (do
+              (print-status (.. "✓ Found chest in " direction "!"))
+              (if is-chest-peripheral
+                  (peripheral.wrap direction)
+                  ;; For inspect method, try to wrap peripheral anyway
+                  (let [wrapped (peripheral.wrap direction)]
+                    (if wrapped wrapped
+                        ;; Fallback: create a manual chest interface
+                        (do
+                          (print-status "Using manual chest interface")
+                          {:direction direction :type "manual"})))))
+            (do
+              (print-status (.. "✗ No chest in " direction))
+              nil))))))
 
 (fn get-chest-items [chest]
-  "Get all items from chest"
+  "Get all items from chest (both peripheral and manual)"
   (if chest
-      (chest.list)
+      (if (= chest.type "manual")
+          (do
+            (print-status "Manual chest detected - cannot list items remotely")
+            {})
+          (chest.list))
       {}))
 
 (fn collect-empty-buckets [chest direction]
-  "Collect empty buckets from chest"
-  (let [items (get-chest-items chest)]
-    (var collected 0)
-    (var bucket-count 0)
-    
-    (each [slot item (pairs items)]
-      (when (is-empty-bucket? item)
-        (set bucket-count (+ bucket-count item.count))
-        (let [empty-slot (find-empty-inventory-slot)]
-          (if empty-slot
-              (do
-                (turtle.select empty-slot)
-                (if (= direction "front")
-                    (turtle.suck)
-                    (if (= direction "back") 
-                        (turtle.suckBack)
-                        (if (= direction "top")
-                            (turtle.suckUp)
-                            (if (= direction "bottom")
-                                (turtle.suckDown)
-                                false))))
-                (set collected (+ collected 1))
-                (print-status (.. "Collected empty bucket from slot " slot)))
-              (do
-                (print-status "Inventory full! Cannot collect more buckets")
-                (lua "break"))))))
-    
-    (print-status (.. "Total empty buckets collected: " collected))
-    collected))
+  "Collect empty buckets from chest (with manual chest support)"
+  (if (and chest (= chest.type "manual"))
+      (do
+        (print-status "Manual chest detected - attempting to collect items")
+        (var collected 0)
+        (var attempts 0)
+        
+        ;; For manual chests, try to suck items until nothing more can be collected
+        (while (and (< attempts 64) (< collected 16)) ; Max 64 attempts, 16 items
+          (set attempts (+ attempts 1))
+          (let [empty-slot (find-empty-inventory-slot)]
+            (if empty-slot
+                (do
+                  (turtle.select empty-slot)
+                  (let [success (if (= direction "front") (turtle.suck)
+                                    (= direction "up") (turtle.suckUp)
+                                    (= direction "down") (turtle.suckDown)
+                                    false)]
+                    (if success
+                        (do
+                          (let [item (turtle.getItemDetail)]
+                            (if (and item (is-empty-bucket? item))
+                                (do
+                                  (set collected (+ collected item.count))
+                                  (print-status (.. "Collected " item.count " empty bucket(s)")))
+                                (when item
+                                  (print-status (.. "Collected non-bucket item: " item.name))))))
+                        ;; No more items to collect
+                        (lua "break"))))
+                ;; Inventory full
+                (lua "break"))))
+        
+        (print-status (.. "Manual collection completed: " collected " empty buckets"))
+        collected)
+      
+      ;; Normal peripheral chest
+      (let [items (get-chest-items chest)]
+        (var collected 0)
+        (var bucket-count 0)
+        
+        (each [slot item (pairs items)]
+          (when (is-empty-bucket? item)
+            (set bucket-count (+ bucket-count item.count))
+            (let [empty-slot (find-empty-inventory-slot)]
+              (if empty-slot
+                  (do
+                    (turtle.select empty-slot)
+                    (if (= direction "front")
+                        (turtle.suck)
+                        (if (= direction "back") 
+                            (turtle.suckBack)
+                            (if (= direction "top")
+                                (turtle.suckUp)
+                                (if (= direction "bottom")
+                                    (turtle.suckDown)
+                                    false))))
+                    (set collected (+ collected 1))
+                    (print-status (.. "Collected empty bucket from slot " slot)))
+                  (do
+                    (print-status "Inventory full! Cannot collect more buckets")
+                    (lua "break"))))))
+        
+        (print-status (.. "Total empty buckets collected: " collected))
+        collected)))
 
 (fn find-empty-inventory-slot []
   "Find first empty inventory slot"
