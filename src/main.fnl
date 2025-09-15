@@ -155,8 +155,53 @@
       (and (= dx 0) (= dy 0) (= dz -1)) "back"    ; Chest is -Z (South)
       :else nil)))
 
+(fn try-detour []
+  "Try to move around obstacles by going left or right"
+  (print-status "Attempting obstacle avoidance...")
+  
+  ;; Try going left (turn left, forward, turn right, forward, turn left)
+  (turtle.turnLeft)
+  (if (turtle.forward)
+      (do
+        (print-status "Detour: moved left")
+        (turtle.turnRight)
+        (if (turtle.forward)
+            (do
+              (print-status "Detour: moved forward after left turn")
+              (turtle.turnLeft)
+              true)
+            (do
+              (print-status "Detour: forward blocked after left turn, returning")
+              (turtle.turnLeft)
+              (turtle.forward) ;; Return to starting position
+              (turtle.turnRight)
+              false)))
+      (do
+        (print-status "Detour: left blocked, trying right")
+        (turtle.turnRight) ;; Return to original facing
+        (turtle.turnRight) ;; Turn right
+        (if (turtle.forward)
+            (do
+              (print-status "Detour: moved right")
+              (turtle.turnLeft)
+              (if (turtle.forward)
+                  (do
+                    (print-status "Detour: moved forward after right turn")
+                    (turtle.turnRight)
+                    true)
+                  (do
+                    (print-status "Detour: forward blocked after right turn, returning")
+                    (turtle.turnRight)
+                    (turtle.forward) ;; Return to starting position
+                    (turtle.turnLeft)
+                    false)))
+            (do
+              (print-status "Detour: both left and right blocked")
+              (turtle.turnLeft) ;; Return to original facing
+              false)))))
+
 (fn move-towards-target []
-  "Move turtle one step towards the target chest (X and Z only)"
+  "Move turtle one step towards the target chest with obstacle avoidance"
   (let [dx (- target-chest.x current-pos.x)
         dz (- target-chest.z current-pos.z)]
     
@@ -165,33 +210,42 @@
     (print-status (.. "Delta: dx=" dx " dz=" dz " (Y movement disabled)"))
     
     (var moved false)
+    (var tried-detour false)
     
     ;; Move in X direction first (East/West) 
     (when (and (not= dx 0) (not moved))
       (if (> dx 0)
           (do 
             (print-status "Moving East (+X) - turning right and forward")
-            ;; Face East (assuming starting facing North)
             (turtle.turnRight)
             (if (turtle.forward)
                 (do
                   (set current-pos.x (+ current-pos.x 1))
                   (set moved true)
                   (print-status "Successfully moved East"))
-                (print-status "Failed to move East - blocked"))
-            ;; Return to original facing direction
+                (do
+                  (print-status "Failed to move East - trying detour")
+                  (when (try-detour)
+                    (set current-pos.x (+ current-pos.x 1))
+                    (set moved true)
+                    (set tried-detour true)
+                    (print-status "Detour successful, moved East"))))
             (turtle.turnLeft))
           (do 
             (print-status "Moving West (-X) - turning left and forward")
-            ;; Face West
             (turtle.turnLeft)
             (if (turtle.forward)
                 (do
                   (set current-pos.x (- current-pos.x 1))
                   (set moved true)
                   (print-status "Successfully moved West"))
-                (print-status "Failed to move West - blocked"))
-            ;; Return to original facing direction
+                (do
+                  (print-status "Failed to move West - trying detour")
+                  (when (try-detour)
+                    (set current-pos.x (- current-pos.x 1))
+                    (set moved true)
+                    (set tried-detour true)
+                    (print-status "Detour successful, moved West"))))
             (turtle.turnRight))))
     
     ;; Move in Z direction (North/South) only if we didn't move in X
@@ -204,7 +258,13 @@
                   (set current-pos.z (+ current-pos.z 1))
                   (set moved true)
                   (print-status "Successfully moved North"))
-                (print-status "Failed to move North - blocked")))
+                (do
+                  (print-status "Failed to move North - trying detour")
+                  (when (try-detour)
+                    (set current-pos.z (+ current-pos.z 1))
+                    (set moved true)
+                    (set tried-detour true)
+                    (print-status "Detour successful, moved North")))))
           (do 
             (print-status "Moving South (-Z) - turn around and forward")
             (turtle.turnRight)
@@ -214,19 +274,26 @@
                   (set current-pos.z (- current-pos.z 1))
                   (set moved true)
                   (print-status "Successfully moved South"))
-                (print-status "Failed to move South - blocked"))
-            ;; Return to original facing direction
+                (do
+                  (print-status "Failed to move South - trying detour")
+                  (when (try-detour)
+                    (set current-pos.z (- current-pos.z 1))
+                    (set moved true)
+                    (set tried-detour true)
+                    (print-status "Detour successful, moved South"))))
             (turtle.turnRight)
             (turtle.turnRight))))
     
     (when moved
-      (print-status (.. "New position: " current-pos.x ", " current-pos.y ", " current-pos.z))
+      (if tried-detour
+          (print-status (.. "New position (via detour): " current-pos.x ", " current-pos.y ", " current-pos.z))
+          (print-status (.. "New position: " current-pos.x ", " current-pos.y ", " current-pos.z)))
       (save-config))
     
     moved))
 
 (fn navigate-to-chest []
-  "Navigate turtle to chest position with step-by-step movement"
+  "Navigate turtle to chest position with step-by-step movement and stuck detection"
   (let [initial-distance (calculate-distance current-pos target-chest)]
     (print-status (.. "Initial distance to chest: " initial-distance " blocks"))
     
@@ -236,14 +303,43 @@
       ;; Navigate to a position adjacent to chest
       (var attempts 0)
       (var current-distance initial-distance)
+      (var stuck-counter 0)
+      (var last-distance initial-distance)
       
-      (while (and (> current-distance 1) (< attempts 20))
+      (while (and (> current-distance 1) (< attempts 30))
         (set attempts (+ attempts 1))
-        (print-status (.. "Navigation attempt " attempts "/20"))
+        (print-status (.. "Navigation attempt " attempts "/30"))
         
-        (move-towards-target)
-        (set current-distance (calculate-distance current-pos target-chest))
-        (print-status (.. "Distance after move: " current-distance " blocks"))
+        (let [move-result (move-towards-target)]
+          (set current-distance (calculate-distance current-pos target-chest))
+          (print-status (.. "Distance after move: " current-distance " blocks"))
+          
+          ;; Check if we're stuck (distance not improving)
+          (if (= current-distance last-distance)
+              (do
+                (set stuck-counter (+ stuck-counter 1))
+                (print-status (.. "Stuck counter: " stuck-counter "/3"))
+                
+                ;; If stuck for 3 attempts, try random movement
+                (when (>= stuck-counter 3)
+                  (print-status "Detected stuck condition - trying random detour")
+                  (turtle.turnLeft)
+                  (if (turtle.forward)
+                      (do
+                        (print-status "Random detour: moved left")
+                        (set current-pos.z (+ current-pos.z 1))) ;; Approximate position update
+                      (do
+                        (turtle.turnRight)
+                        (turtle.turnRight)
+                        (when (turtle.forward)
+                          (print-status "Random detour: moved right")
+                          (set current-pos.z (- current-pos.z 1))) ;; Approximate position update
+                        (turtle.turnLeft)))
+                  (set stuck-counter 0)
+                  (save-config)))
+              (set stuck-counter 0))
+          
+          (set last-distance current-distance))
         
         (os.sleep 0.5))
       

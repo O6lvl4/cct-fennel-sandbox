@@ -173,6 +173,48 @@ local function get_direction_to_target()
     return nil
   end
 end
+local function try_detour()
+  print_status("Attempting obstacle avoidance...")
+  turtle.turnLeft()
+  if turtle.forward() then
+    print_status("Detour: moved left")
+    turtle.turnRight()
+    if turtle.forward() then
+      print_status("Detour: moved forward after left turn")
+      turtle.turnLeft()
+      return true
+    else
+      print_status("Detour: forward blocked after left turn, returning")
+      turtle.turnLeft()
+      turtle.forward()
+      turtle.turnRight()
+      return false
+    end
+  else
+    print_status("Detour: left blocked, trying right")
+    turtle.turnRight()
+    turtle.turnRight()
+    if turtle.forward() then
+      print_status("Detour: moved right")
+      turtle.turnLeft()
+      if turtle.forward() then
+        print_status("Detour: moved forward after right turn")
+        turtle.turnRight()
+        return true
+      else
+        print_status("Detour: forward blocked after right turn, returning")
+        turtle.turnRight()
+        turtle.forward()
+        turtle.turnLeft()
+        return false
+      end
+    else
+      print_status("Detour: both left and right blocked")
+      turtle.turnLeft()
+      return false
+    end
+  end
+end
 local function move_towards_target()
   local dx = (target_chest.x - current_pos.x)
   local dz = (target_chest.z - current_pos.z)
@@ -180,6 +222,7 @@ local function move_towards_target()
   print_status(("Target: " .. target_chest.x .. ", " .. target_chest.y .. ", " .. target_chest.z))
   print_status(("Delta: dx=" .. dx .. " dz=" .. dz .. " (Y movement disabled)"))
   local moved = false
+  local tried_detour = false
   if ((dx ~= 0) and not moved) then
     if (dx > 0) then
       print_status("Moving East (+X) - turning right and forward")
@@ -189,7 +232,14 @@ local function move_towards_target()
         moved = true
         print_status("Successfully moved East")
       else
-        print_status("Failed to move East - blocked")
+        print_status("Failed to move East - trying detour")
+        if try_detour() then
+          current_pos.x = (current_pos.x + 1)
+          moved = true
+          tried_detour = true
+          print_status("Detour successful, moved East")
+        else
+        end
       end
       turtle.turnLeft()
     else
@@ -200,7 +250,14 @@ local function move_towards_target()
         moved = true
         print_status("Successfully moved West")
       else
-        print_status("Failed to move West - blocked")
+        print_status("Failed to move West - trying detour")
+        if try_detour() then
+          current_pos.x = (current_pos.x - 1)
+          moved = true
+          tried_detour = true
+          print_status("Detour successful, moved West")
+        else
+        end
       end
       turtle.turnRight()
     end
@@ -214,7 +271,14 @@ local function move_towards_target()
         moved = true
         print_status("Successfully moved North")
       else
-        print_status("Failed to move North - blocked")
+        print_status("Failed to move North - trying detour")
+        if try_detour() then
+          current_pos.z = (current_pos.z + 1)
+          moved = true
+          tried_detour = true
+          print_status("Detour successful, moved North")
+        else
+        end
       end
     else
       print_status("Moving South (-Z) - turn around and forward")
@@ -225,7 +289,14 @@ local function move_towards_target()
         moved = true
         print_status("Successfully moved South")
       else
-        print_status("Failed to move South - blocked")
+        print_status("Failed to move South - trying detour")
+        if try_detour() then
+          current_pos.z = (current_pos.z - 1)
+          moved = true
+          tried_detour = true
+          print_status("Detour successful, moved South")
+        else
+        end
       end
       turtle.turnRight()
       turtle.turnRight()
@@ -233,7 +304,11 @@ local function move_towards_target()
   else
   end
   if moved then
-    print_status(("New position: " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z))
+    if tried_detour then
+      print_status(("New position (via detour): " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z))
+    else
+      print_status(("New position: " .. current_pos.x .. ", " .. current_pos.y .. ", " .. current_pos.z))
+    end
     save_config()
   else
   end
@@ -246,12 +321,43 @@ local function navigate_to_chest()
     print_status("Starting navigation to chest...")
     local attempts = 0
     local current_distance = initial_distance
-    while ((current_distance > 1) and (attempts < 20)) do
+    local stuck_counter = 0
+    local last_distance = initial_distance
+    while ((current_distance > 1) and (attempts < 30)) do
       attempts = (attempts + 1)
-      print_status(("Navigation attempt " .. attempts .. "/20"))
-      move_towards_target()
-      current_distance = calculate_distance(current_pos, target_chest)
-      print_status(("Distance after move: " .. current_distance .. " blocks"))
+      print_status(("Navigation attempt " .. attempts .. "/30"))
+      do
+        local move_result = move_towards_target()
+        current_distance = calculate_distance(current_pos, target_chest)
+        print_status(("Distance after move: " .. current_distance .. " blocks"))
+        if (current_distance == last_distance) then
+          stuck_counter = (stuck_counter + 1)
+          print_status(("Stuck counter: " .. stuck_counter .. "/3"))
+          if (stuck_counter >= 3) then
+            print_status("Detected stuck condition - trying random detour")
+            turtle.turnLeft()
+            if turtle.forward() then
+              print_status("Random detour: moved left")
+              current_pos.z = (current_pos.z + 1)
+            else
+              turtle.turnRight()
+              turtle.turnRight()
+              if turtle.forward() then
+                print_status("Random detour: moved right")
+                current_pos.z = (current_pos.z - 1)
+              else
+              end
+              turtle.turnLeft()
+            end
+            stuck_counter = 0
+            save_config()
+          else
+          end
+        else
+          stuck_counter = 0
+        end
+        last_distance = current_distance
+      end
       os.sleep(0.5)
     end
     if (current_distance <= 1) then
